@@ -1,35 +1,49 @@
 #!/usr/bin/env bash
-# Assemble Scion templates for the pstack team from templates-src/ + skills/ + upstream.
+# Generate templates/<role>/scion-agent.yaml from the skill sets below.
 #
-# A skill counts as "adapted" when skills/<name>/ exists here, and is copied template-local.
-# Every other skill is "verbatim" and is referenced from upstream by a SHA-pinned URI,
-# or copied from the upstream snapshot when SKILL_MODE=vendor.
+# The generated files are committed. Re-run this script after changing a skill set,
+# adding an adapted skill under skills/, or bumping UPSTREAM_SHA, and commit the result.
 #
-# Usage: bash build.sh [--vendor] [--out DIR]
+# Skill sources:
+#   - adapted (skills/<name>/ exists in this repo)  -> gh://scion-frontiers/scion-pstack/<name>
+#   - cursor-team-kit (deslop, control-ui, control-cli) -> SHA-pinned tree URI into cursor/plugins
+#   - everything else from upstream pstack             -> SHA-pinned tree URI into cursor/plugins
+#
+# Exception: Scion's GitHub skill resolvers fetch only a skill's top-level files and drop its
+# subdirectories. A skill with nested files (poteto-mode's playbooks/ and scripts/, for example)
+# is therefore copied into templates/<role>/skills/<name>/ instead, and those copies are committed.
+# Never edit them in place: edit skills/ (or bump the upstream snapshot) and re-run this script.
+#
+# Usage:
+#   bash build.sh            # rewrite templates/*/scion-agent.yaml
+#   bash build.sh --check    # exit 1 if the committed files are stale
+#   bash build.sh --bundle DIR
+#                            # write self-contained templates to DIR with every skill copied
+#                            # in locally (for hubs that cannot reach GitHub or this private repo)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+REPO_URI="gh://scion-frontiers/scion-pstack"
 UPSTREAM_SHA="5ff7a359dec6be2128b15c0fe53c1c12a46e41c8"
 UPSTREAM_DIR="$ROOT/upstream/pstack-5ff7a35"
 URI_BASE="https://github.com/cursor/plugins/tree/$UPSTREAM_SHA/pstack/skills"
-# pstack depends on three cursor-team-kit skills (same repo, same SHA, MIT). They are host-neutral, so they are referenced verbatim.
 TEAMKIT_DIR="$ROOT/upstream/cursor-team-kit-5ff7a35"
 TEAMKIT_URI_BASE="https://github.com/cursor/plugins/tree/$UPSTREAM_SHA/cursor-team-kit/skills"
 TEAMKIT="deslop control-ui control-cli"
-SKILL_MODE=uri
-OUT="$ROOT/templates"
+DROPPED="make-bot-ui"
 
+MODE=write
+BUNDLE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --vendor) SKILL_MODE=vendor ;;
-    --out) OUT="$2"; shift ;;
+    --check) MODE=check ;;
+    --bundle) MODE=bundle; BUNDLE="$2"; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
 done
 
 PRINCIPLES=$(cd "$UPSTREAM_DIR/skills" && ls -d principle-* | sort)
-DROPPED="make-bot-ui"
 
 all_skills() {
   { ls "$UPSTREAM_DIR/skills"; ls "$ROOT/skills"; } | sort -u | grep -vxF "$DROPPED"
@@ -56,46 +70,108 @@ description_for() {
   esac
 }
 
-rm -rf "$OUT"
-for tpl in $(ls "$ROOT/templates-src"); do
-  dest="$OUT/$tpl"
-  mkdir -p "$dest/skills"
-  cp "$ROOT/templates-src/$tpl/agents.md" "$dest/agents.md"
-  uris=()
-  n_local=0
-  for s in $(skills_for "$tpl"); do
-    if [[ -d "$ROOT/skills/$s" ]]; then
-      rsync -a --exclude PORT-NOTES.md --exclude node_modules "$ROOT/skills/$s/" "$dest/skills/$s/"
-      n_local=$((n_local + 1))
-    elif [[ -d "$TEAMKIT_DIR/skills/$s" ]]; then
-      if [[ "$SKILL_MODE" == vendor ]]; then
-        rsync -a "$TEAMKIT_DIR/skills/$s/" "$dest/skills/$s/"; n_local=$((n_local + 1))
-      else
-        uris+=("$TEAMKIT_URI_BASE/$s")
-      fi
-    elif [[ -d "$UPSTREAM_DIR/skills/$s" ]]; then
-      if [[ "$SKILL_MODE" == vendor ]]; then
-        rsync -a --exclude node_modules "$UPSTREAM_DIR/skills/$s/" "$dest/skills/$s/"
-        n_local=$((n_local + 1))
-      else
-        uris+=("$URI_BASE/$s")
-      fi
-    else
-      echo "missing skill $s for $tpl" >&2; exit 1
+src_of() {
+  if   [[ -d "$ROOT/skills/$1" ]];         then echo "$ROOT/skills/$1"
+  elif [[ -d "$TEAMKIT_DIR/skills/$1" ]];  then echo "$TEAMKIT_DIR/skills/$1"
+  elif [[ -d "$UPSTREAM_DIR/skills/$1" ]]; then echo "$UPSTREAM_DIR/skills/$1"
+  else echo "missing skill $1" >&2; return 1
+  fi
+}
+
+nested() {
+  [[ -n "$(find "$1" -mindepth 2 -type f -not -path '*/node_modules/*' -print -quit)" ]]
+}
+
+# Print "<kind> <name>" per URI-delivered skill, grouped: adapted, team-kit, upstream.
+classify() {
+  local s src
+  for s in $(skills_for "$1"); do
+    src=$(src_of "$s") || exit 1
+    nested "$src" && continue
+    if   [[ -d "$ROOT/skills/$s" ]];         then echo "adapted $s"
+    elif [[ -d "$TEAMKIT_DIR/skills/$s" ]];  then echo "teamkit $s"
+    else echo "upstream $s"
     fi
+  done | sort -s -k1,1 -t' ' | awk '{o=($1=="adapted")?0:($1=="teamkit")?1:2; print o, $0}' | sort -s -n -k1,1 | cut -d' ' -f2-
+}
+
+render_yaml() {
+  local tpl="$1" kind name last=""
+  echo 'schema_version: "1"'
+  echo "description: \"$(description_for "$tpl")\""
+  echo "agent_instructions: agents.md"
+  echo "# No system_prompt: the harness default prompt is kept (see LEARNINGS L11)."
+  echo "# Harness and model are chosen per spawn from pstack-models.yaml (see pstack-scion-runtime)."
+  [[ "$tpl" == pstack-lead ]] && echo "model: extra-large"
+  echo "#"
+  echo "# Generated by build.sh; edit the skill sets there, then re-run it."
+  local locals; locals=$(local_skills "$tpl" | tr '\n' ' ')
+  if [[ -n "$locals" ]]; then
+    echo "#"
+    echo "# Also shipped as local files in skills/, because Scion's GitHub skill resolver drops"
+    echo "# subdirectories: ${locals% }"
+  fi
+  echo "skills:"
+  while read -r kind name; do
+    if [[ "$kind" != "$last" ]]; then
+      case "$kind" in
+        adapted)  echo "  # Adapted for Scion, from this repo's skills/ (diffs/ has each fork's diff against upstream)." ;;
+        teamkit)  echo "  # Unchanged cursor-team-kit skills that pstack cites, pinned to cursor/plugins@${UPSTREAM_SHA:0:7}." ;;
+        upstream) echo "  # Unchanged upstream pstack skills, pinned to cursor/plugins@${UPSTREAM_SHA:0:7}." ;;
+      esac
+      last="$kind"
+    fi
+    case "$kind" in
+      adapted)  echo "  - uri: \"$REPO_URI/$name\"" ;;
+      teamkit)  echo "  - uri: \"$TEAMKIT_URI_BASE/$name\"" ;;
+      upstream) echo "  - uri: \"$URI_BASE/$name\"" ;;
+    esac
+  done < <(classify "$tpl")
+}
+
+# Skills with subdirectories, delivered as template-local copies.
+local_skills() {
+  local s
+  for s in $(skills_for "$1"); do nested "$(src_of "$s")" && echo "$s"; done
+  return 0
+}
+
+copy_local() {  # copy_local <tpl> <dest-skills-dir>
+  local s
+  mkdir -p "$2"
+  for s in $(local_skills "$1"); do
+    rsync -a --delete --exclude PORT-NOTES.md --exclude node_modules "$(src_of "$s")/" "$2/$s/"
   done
-  {
-    echo 'schema_version: "1"'
-    echo "description: \"$(description_for "$tpl")\""
-    echo "agent_instructions: agents.md"
-    echo "# Harness and model are chosen per spawn from pstack-models.yaml (see pstack-scion-runtime)."
-    [[ "$tpl" == pstack-lead ]] && echo "model: extra-large"
-    if [[ ${#uris[@]} -gt 0 ]]; then
-      echo "# Verbatim upstream pstack and cursor-team-kit skills, pinned to cursor/plugins@${UPSTREAM_SHA:0:7}."
-      echo "skills:"
-      for u in "${uris[@]}"; do echo "  - uri: \"$u\""; done
-    fi
-  } > "$dest/scion-agent.yaml"
-  rmdir "$dest/skills" 2>/dev/null || true
-  echo "$tpl: $n_local local skills, ${#uris[@]} URI skills"
+}
+
+stale=0
+for dir in "$ROOT"/templates/*/; do
+  tpl=$(basename "$dir")
+  case "$MODE" in
+    write)
+      render_yaml "$tpl" > "$dir/scion-agent.yaml"
+      rm -rf "$dir/skills"
+      [[ -n "$(local_skills "$tpl")" ]] && copy_local "$tpl" "$dir/skills"
+      echo "$tpl: $(grep -c '^  - uri:' "$dir/scion-agent.yaml") URI skills, $(local_skills "$tpl" | wc -l) local" ;;
+    check)
+      if ! diff -u "$dir/scion-agent.yaml" <(render_yaml "$tpl"); then stale=1; fi
+      tmp=$(mktemp -d); copy_local "$tpl" "$tmp/skills"
+      if ! diff -r "$tmp/skills" "${dir}skills" 2>/dev/null >/dev/null && [[ -n "$(ls "$tmp/skills")" || -d "${dir}skills" ]]; then
+        echo "$tpl: skills/ copies are stale" >&2; stale=1
+      fi
+      rm -rf "$tmp" ;;
+    bundle)
+      dest="$BUNDLE/$tpl"
+      rm -rf "$dest"; mkdir -p "$dest/skills"
+      cp "$dir/agents.md" "$dest/agents.md"
+      render_yaml "$tpl" | sed '/^skills:/,$d' > "$dest/scion-agent.yaml"
+      copy_local "$tpl" "$dest/skills"
+      while read -r kind name; do
+        rsync -a --exclude PORT-NOTES.md --exclude node_modules "$(src_of "$name")/" "$dest/skills/$name/"
+      done < <(classify "$tpl")
+      echo "$tpl: bundled $(ls "$dest/skills" | wc -l) skills into $dest" ;;
+  esac
 done
+if [[ "$MODE" == check ]]; then
+  [[ $stale -eq 0 ]] && echo "templates are up to date" || { echo "stale: run bash build.sh" >&2; exit 1; }
+fi
