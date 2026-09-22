@@ -18,7 +18,6 @@ A port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), a Cursor
 - `templates-src/<role>/agents.md`: the per-role instructions.
 - `build.sh`: assembles `templates/`. Adapted skills are copied in as local files. Unchanged upstream skills are referenced by SHA-pinned GitHub URI (`--vendor` copies them instead).
 - `diffs/`: each fork's diff against upstream.
-- `trials/`: the dogfood trial, where the lead interrogated its own port diff. Includes the verdict, briefs, and mutation corpus.
 - `DESIGN.md` and `LEARNINGS.md`: the decisions made and the lessons learned (L1 to L55). The general porting meta-skills distilled from them live separately, with Scion.
 
 ## Use
