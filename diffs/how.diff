@@ -1,0 +1,59 @@
+diff -ruN -x PORT-NOTES.md upstream/pstack-5ff7a35/skills/how/SKILL.md skills/how/SKILL.md
+--- upstream/pstack-5ff7a35/skills/how/SKILL.md	2026-09-22 19:23:16.844647070 +0000
++++ skills/how/SKILL.md	2026-09-22 19:27:03.434647699 +0000
+@@ -1,7 +1,6 @@
+ ---
+ name: how
+ description: "Use for \"how does X work\", code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, onboarding mental models. Use why for motivation."
+-disable-model-invocation: true
+ ---
+ 
+ # How
+@@ -19,33 +18,33 @@
+ 
+ ## Step 2a. Explore (complex questions only)
+ 
+-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
++Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers at once:
+ 
+-- `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)
+-- `readonly`: `true`
++- tier: in-harness subagents (read-only, single family). When `roles.how-explorer` in `pstack-models.yaml` names a harness other than yours, start `pstack-reviewer` Scion agents on it instead (`pstack-scion-runtime` §1).
++- model: `roles.how-explorer` (default `inherit`, your own model)
++- readonly: `true` (a brief clause for Scion agents)
+ 
+ Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
+ 
+ ## Step 2b. Direct Explain (simple questions)
+ 
+-Spawn one Task subagent that explores and explains in one pass:
++Spawn one subagent that explores and explains in one pass:
+ 
+-- `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)
+-- `readonly`: `true`
++- tier: in-harness subagent when `roles.judgment` resolves to your own harness, otherwise one `pstack-reviewer` Scion agent on it
++- model: `roles.judgment` (the how-explainer role)
++- readonly: `true` (a brief clause for Scion agents)
+ 
+-Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
++Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. A Scion-agent explainer also needs the branch and SHA to read. Go to Step 4.
+ 
+ ## Step 3. Synthesize (complex questions only)
+ 
+-Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:
++Once all explorers have returned, spawn one subagent to synthesize their findings into one explanation:
+ 
+-- `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)
+-- `readonly`: `true`
++- tier: in-harness subagent when `roles.judgment` resolves to your own harness, otherwise one `pstack-reviewer` Scion agent on it
++- model: `roles.judgment` (the how-explainer role)
++- readonly: `true` (a brief clause for Scion agents)
+ 
+-Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
++Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in. A Scion-agent explainer reads code in its own clone, so give it the branch and SHA you explored, and write long findings to the pstack store rather than inlining them.
+ 
+ ## Step 4. Present
+ 

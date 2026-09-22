@@ -1,0 +1,13 @@
+Interrogate verdict, check-plan-port.diff. Not yet acceptable against the intent. Two Act On items with tested fixes. Long form: $PSTACK_STORE/adhoc-20260922-check-plan-interrogate/verdict.md
+
+ACT ON
+1. Validator regression. Reviewer A, Reviewer B and my 25-defect corpus each measured it. "Re-read them at every tick" already existed in the upstream skeleton, so swapping it in for "git show origin/main:" removed a check. Delete the nested re-read list and the ported validator prints 0 problems while upstream rejects. One-line fix, tested to parity with upstream on every corpus row: a RegExp marker on the nested list, /^ {2}- \[[ x]\] `swarm\/SKILL\.md`$/m. Also tighten "goal.md" to "write `goal.md`" (B measured that Cursor's /goal phrasing still passes). Check the negative cases in as fixtures; corpus.sh is a start.
+2. Skeleton line 77 still saves lane screenshots to container-local /tmp, contradicting swarm/SKILL.md:25. The review-gate copy at line 123 has no source once the lane agent exits (A, verified).
+
+CONSIDER. Schedule armed, never deleted (A). "Paths relative to the installed skill root" is false for two of three path styles (lead). goal.md and docs/ at store root; §4 puts them under <program-slug>/ (B).
+NOTED. node shebang vs bun. "section 2" vs §2. Outside the diff: grok slug in refactoring.md, /loop in bug-fix.md.
+Otherwise clean: 22 of 25 defects rejected identically.
+
+PANEL. claude only. grok-build, codex, gemini, copilot, opencode, hermes, muse-code all failed to start or authenticate (measured). A = claude xl, B = claude large, plus the corpus as the model-free check.
+
+PORT FRICTION. Default panel unrunnable here; setup-pstack should preflight-start each entry. 31KB inline brief crashed 5/5 agents, pointer tasks lived (inferred). Crashed children are black boxes (logs 403). A's REPORT never arrived, B's did; reports should also land in inbox/. shared-dir list says none while scratchpad is mounted.
