@@ -11,7 +11,7 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
 
 ## 1. Locate the active transcript
 
-Before fanning out, assemble this session's transcript from the sources in **pstack-scion-runtime** §2 (`agent-transcripts/` row), in order: your own harness's local session log if readable inside your container, your trail file (`decisions.tsv`) and `notes.md`, `scion conversation` history for this request, and `scion logs` / `scion look` for the agents you delegated to. Stay inside this session's conversation and agents. Do not pull other projects' conversations or logs. That crosses project boundaries and reads private threads.
+Before fanning out, assemble this session's transcript from the sources in **pstack-scion-runtime** §2 (`agent-transcripts/` row), in order: your own harness's local session log if readable inside your container, your trail file (`decisions.tsv`) and `notes.md`, `scion conversation` history for this request, and `scion look <agent> --full --plain` (or `scion logs <agent>` when available) for the agents you delegated to. Stay inside this session's conversation and agents. Do not pull other projects' conversations or logs. That crosses project boundaries and reads private threads.
 
 Write the assembled record, with a tight digest of the session on top, to `<store>/<program-slug>/reflect/transcript.md` in the pstack store so reviewers in other containers can read it, and pass that path. If none of the sources resolves, pass a tight digest of the session instead.
 
