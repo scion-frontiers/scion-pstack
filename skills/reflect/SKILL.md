@@ -17,9 +17,9 @@ Write the assembled record, with a tight digest of the session on top, to `<stor
 
 ## 2. Spawn three reviewers in parallel
 
-Launch all three at once, each on its configured role in `pstack-models.yaml` (**pstack-scion-runtime** §3). When a lens's harness differs from yours, start a `pstack-reviewer` Scion agent; when it resolves to your own harness, an in-harness subagent is allowed (**pstack-scion-runtime** §1). Reviewers keep MCP access to look up the tickets, chat threads, and observability traces the transcript references, and write nothing (a Scion-agent reviewer has its template's MCP servers). Substitute unavailable harnesses per **pstack-scion-runtime** §3 and pick each reviewer's reasoning level per the Subagents section of the **poteto-mode** skill.
+Launch all three at once, each on its configured role in `pstack-models.yaml` (**pstack-scion-runtime** §3; when `<store>/pstack-models.yaml` is missing, every lens defaults to `inherit` so unpreflighted harnesses are never spawned). When a lens's harness differs from yours, start a `pstack-reviewer` Scion agent; when it resolves to your own harness (including `inherit`), an in-harness subagent is allowed (**pstack-scion-runtime** §1). Reviewers keep MCP access to look up the tickets, chat threads, and observability traces the transcript references, and write nothing (a Scion-agent reviewer has its template's MCP servers). Substitute unavailable harnesses per **pstack-scion-runtime** §3 and pick each reviewer's reasoning level per the Subagents section of the **poteto-mode** skill.
 
-| Lens | Role key | Default | Prompt template |
+| Lens | Role key | `# defaults: 2` target (when preflighted; `inherit` if `pstack-models.yaml` is missing) | Prompt template |
 |---|---|---|---|
 | Judgment | `roles.reflect-judgment` (`judgment`) | `{harness: claude, model: extra-large}` | `references/judgment-reviewer.md` |
 | Tooling | `roles.reflect-tooling` | `{harness: codex, model: extra-large}` | `references/tooling-reviewer.md` |
