@@ -7,6 +7,8 @@ The section below is the upstream Comment Sicko agent, ported verbatim. Only the
 - **The `/why` skill** is the **why** skill. Read it directly per **pstack-scion-runtime** §0.
 - **Report** to `<store>/<program>/inbox/<your-agent-name>.md` when the brief gives a store, and by `scion message` to the agent that started you: touched files, deletion count, `MUST KILL` flags with one line each, skips, and your branch plus head SHA. Then signal task completion.
 
+If your harness's native file tools (`read_file`, `write_file`, `replace`, as on `gemini-cli`) refuse paths outside `/workspace` (`$HOME/.*/skills/...` or `/scion-volumes/...`), read skills and briefs and write `<store>/<program>/inbox/<your-agent-name>.md` via shell commands (`cat`, `sed -n`, `mkdir -p`, `tee`, quoted heredocs, or Python/Node file I/O). Stage temporary drafts in `/tmp` if needed, never inside `/workspace`.
+
 ---
 
 
