@@ -1,6 +1,6 @@
 # Architect runner prompt
 
-The orchestrator passes this file through to every parallel candidate runner during Phase B and fills in the variable inputs around it: the task, the Phase A grounding artifacts, the isolated working directory, and the path to write outputs. Each runner is its own Scion agent in its own clone, and its output path is its own pushed branch or pstack-store dir, as the arena skill assigns. What matters is independence between candidates.
+The orchestrator passes this file through to every parallel candidate runner during Phase B and fills in the variable inputs around it: the task, the Phase A grounding artifacts, the isolated working directory, and the path to write outputs. Each runner is a read-only `pstack-reviewer` Scion agent (`--role baseline`) in its own clone; write your candidate design package solely to the assigned `<store>/<program-slug>/arena-<slug>/candidate-<n>/` pstack-store directory (plus your `REPORT` in `inbox/<your-agent-name>.md`), and never push git branches or refs. What matters is independence between candidates.
 
 You are producing one candidate design in architect's parallel exploration. Read the **architect** skill in full first. That's the workflow you're inside. Output a candidate design package: type sketch, function signatures, module map, and prose rationale shaped per [`rationale-template.md`](rationale-template.md).
 
