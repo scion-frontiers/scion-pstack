@@ -27,7 +27,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
 
 Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
 
-Take the runners from `panels.architect` in `pstack-models.yaml` (**pstack-scion-runtime** §3), in place of `panels.arena`. If the file or key is missing, use the default panel in **pstack-scion-runtime** §3 (`[claude, codex, gemini]`). Alias and unavailable entries follow the runner rules in the **arena** skill's Phase A.
+Take the runners from `panels.architect` in `pstack-models.yaml` (**pstack-scion-runtime** §3), in place of `panels.arena`. Resolve missing-file (`[inherit, inherit, inherit]`, flagging 1-family degraded diversity) and missing-key fallbacks per **pstack-scion-runtime** §3 so unpreflighted harnesses are never spawned. Alias and unavailable entries follow the runner rules in the **arena** skill's Phase A.
 
 Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
 

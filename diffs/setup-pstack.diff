@@ -1,7 +1,7 @@
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/setup-pstack/SKILL.md skills/setup-pstack/SKILL.md
---- upstream/pstack-bf0c7cd/skills/setup-pstack/SKILL.md	2026-11-16 01:31:59.500771878 +0000
-+++ skills/setup-pstack/SKILL.md	2026-11-16 02:07:48.778732068 +0000
-@@ -1,83 +1,86 @@
+--- upstream/pstack-bf0c7cd/skills/setup-pstack/SKILL.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/setup-pstack/SKILL.md	2026-11-16 13:54:56.654444234 +0000
+@@ -1,83 +1,102 @@
  ---
  name: setup-pstack
 -description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes an always-applied rule that overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
@@ -16,34 +16,46 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/setup-
  ## Steps
  
 -### 1. Detect available models
-+### 1. Detect available harness-configs
++### 0. Resolve and initialize the pstack store
  
 -Enumerate the model slugs you can pass to a `Task` subagent in this session. That is the dependable source. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs.
-+Run `scion harness-config list`. Its `NAME` column is the only dependable source of harness names. Each harness-config maps the aliases `small`, `medium`, `large`, and `extra-large` to its own vendor's models (`model_aliases` in its `config.yaml`; `scion harness-config pull <name> --to <scratch-dir>/hc/<name>` fetches it when you need the concrete IDs). If the command fails, ask the user to paste the names they have. Never write a harness name you have not confirmed is available. The value `inherit` is always valid even though it is not a detected name.
++Resolve `<store-root>` per **pstack-scion-runtime** §4 (canonical default: `$PSTACK_STORE`, else `/scion-volumes/scratchpad/pstack`, with each program's directory at `<store-root>/<program-slug>/`). Check mounted volumes directly (`ls -d /scion-volumes/*/` or `.scion-volumes/*/`, where `scratchpad` wins), because `scion shared-dir list` can report none while a volume is mounted and writable.
  
 -### 2. Load current state
++When `$PSTACK_STORE` is set or a writable `/scion-volumes/<mount>/` mount exists, create the store upfront (`mkdir -p <store-root>/.preflight/inbox && chmod 2775 <store-root> 2>/dev/null || true`) and write `ok` to `<store-root>/.preflight/probe.txt` so step 1b verifies cross-container read and write access from a spawned `pstack-reviewer`. If `$PSTACK_STORE` is unset and no writable shared volume is mounted, ask the user (**pstack-scion-runtime** §2 `ask_user`) to mount a project shared volume (such as `scratchpad`) or set `PSTACK_STORE` before multi-container runs, noting that a clone-local store is not shared across containers; skip the `.preflight/` child store check only if they choose a local setup for now.
++
++### 1. Detect available harness-configs and model families
++
++Run `scion harness-config list`. Its `NAME` column is the only dependable source of harness names. Pull each detected harness-config into `/tmp/pstack-hc/<name>` (`scion harness-config pull <name> --to /tmp/pstack-hc/<name>`, never inside `/workspace`) and read its `config.yaml` (`model_aliases` and default `model`) to resolve concrete IDs for `small`, `medium`, `large`, and `extra-large` plus its model `family` (`claude-*` → `anthropic`, `gpt-*` / `o1*` / `o3*` / `o4*` → `openai`, `gemini-*` → `google`, `grok-*` → `xai`, and so on; a multi-provider harness such as `opencode` takes the family of the model ID its alias resolves to). If `scion harness-config list` fails, ask the user to paste the names they have. Never write a harness name you have not confirmed is available. The value `inherit` is always valid even though it is not a detected name.
++
 +### 1b. Preflight: which ones actually start
-+
-+A listed harness-config can still fail at start (expired auth, missing image, a crash at boot). For each detected name, start one throwaway agent with a trivial task:
-+
-+`scion start setup-preflight-<name> --type pstack-reviewer --harness-config <name> "Reply with the single word ok to @<your-agent-name> with scion message, then signal task completion."`
-+
-+Start them all at once, then run `sciontool status blocked "setup-pstack preflight"`. After about five minutes, or once every result is in, check `scion list`. A name is **runnable** when its agent sent `ok` or reached `COMPLETED`. It has **failed** when the agent errored, exited, or sits on an interactive auth prompt (`scion look <agent>` once). Delete every preflight agent. The detected set for the steps below is the runnable set. Record the failed names and their reasons in the file's header comment (step 5), so later runs and the runtime's substitution rule know what was tried.
  
 -The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how explorer` or `why investigators`, is from a retired role. Drop it.
-+### 2. Load current state
++A listed harness-config can still fail at start (expired auth, missing image, a crash at boot). Pick a unique agent prefix `<prefix>` (default `<your-agent-name>-pf` from `$SCION_AGENT_NAME` or `scion list`, honoring any prefix or batch size in the brief so project naming rules pass, and adding a short run suffix if a stale `<prefix>-*` agent exists). For each detected name, start one throwaway `pstack-reviewer` with explicit `--role baseline` (**pstack-scion-runtime** §1):
  
 -A rule without the `# defaults: 2` line comes from an older setup. That setup wrote a line for every role, so some of its values are old defaults, not choices. An old slug is one that matches `grok-*`. Before step 3, replace these values:
-+The default role mapping is the file shape shown in step 5 below (`# defaults: 2`). If `<store-root>/pstack-models.yaml` already exists, read it and treat its `budget` key and its role values as the current choices. Otherwise start from those defaults. Any role key not in step 5 (such as `how-explorer`, `how-explainer`, `why-investigator`, or `why-synthesizer`) is from a retired `# defaults: 1` role; drop it and record it to show in step 3(c).
++`scion start <prefix>-<name> --type pstack-reviewer --role baseline --harness-config <name> "Read <store-root>/.preflight/probe.txt, write ok to <store-root>/.preflight/inbox/<prefix>-<name>.md, reply with the single word ok to @<your-agent-name> with scion message, then signal task completion."`
  
 -- An old slug in `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `reflect tooling`, or `swarm workers` takes the role's step 5 default.
 -- A `claude-opus-*` value in `hardest tasks` takes the role's step 5 default.
 -- In a panel role (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`), a list of exactly one `claude-opus-*` entry and one old slug, in either order, takes the role's step 5 list. In any other list, each old slug becomes `claude-opus-5-5-high-fast`.
-+A file without `# defaults: 2` comes from an older setup whose defaults used `grok-*` (`grok-build`). Before step 3, replace legacy defaults:
-+- A `grok-*` harness in `code`, `reflect-tooling`, or `swarm-worker` takes that role's step 5 default.
-+- In a panel role (`interrogate`, `architect`, `arena`, `cross-judge`), the 4-seat `# defaults: 1` default list `[claude, codex, gemini, grok-build]` (or any `grok-*` default entry) takes the 3-seat step 5 list `[claude, codex, gemini]` (dropping `grok-*` entries from custom lists or substituting a runnable vendor).
++(Omit the `.preflight/` read and write clause only when step 0 found no shared store.)
  
 -Every other value is the user's choice and stays, including an old slug in any other role and every `inherit-parent` or `auto` value. Tell the user which values you replaced.
++- **Template provisioning blocker (`skill_resolution_failed`).** If `scion start` fails with `skill_resolution_failed` (for example 404 on `gh://scion-frontiers/scion-pstack/...` or `secret "GH_SCION_FRONTIERS" not found in ProvisionCredentials`), stop preflight immediately instead of marking the harness unrunnable or launching remaining harnesses. That error blocks every template in the project because Hub skill resolution ignores user-scope secrets: tell the user to set `GH_SCION_FRONTIERS` at **project scope** (`scion hub secret set --project GH_SCION_FRONTIERS <PAT>`, or `sciontool secret set GH_SCION_FRONTIERS <PAT>` from a `--role full` agent) or re-sync templates from `bash build.sh --bundle DIR`.
++- **Concurrency caps and non-zero `scion start` exits.** Launch all detected harnesses at once unless the brief sets a batch size. If `scion start` hits `429` / `quota_exceeded` (`max_agents_per_broker`), stop launching new ones, finish and `scion delete` the active batch, then test remaining harnesses in smaller batches (down to 1 at a time). Whenever `scion start` exits non-zero without `skill_resolution_failed` (such as `context deadline exceeded` or readiness exit `3`), still check `scion list` for `<prefix>-<name>`: if the Hub created the agent and it is running, keep waiting on it; otherwise record the start failure and `scion delete` any leaked container.
++- **Check messages, store probe, and `scion list`.** Run `sciontool status blocked "setup-pstack preflight"` with a per-batch timeout of 3 to 5 minutes (optionally arming a one-shot `scion schedule create --in 5m` self-callback canceled via `scion schedule cancel <id>` once done, **pstack-scion-runtime** §2; never `sleep`-poll). Do not rely on `scion list` alone, because harnesses such as `opencode` can send `ok` and stay running without reaching `COMPLETED`. Check inbound `scion message` / `scion conversation` history for `ok`, `<store-root>/.preflight/inbox/<prefix>-<name>.md` (when using a shared store), and `scion list`. A name is **runnable** when its agent sent `ok` or reached `COMPLETED` cleanly. When step 0 initialized a shared store, confirm at least one runnable child wrote `<store-root>/.preflight/inbox/<prefix>-<name>.md`; if an agent sent `ok` by message while failing to read or write `<store-root>/.preflight/`, surface the shared-store mount or permission error before continuing. A name has **failed** when it timed out without `ok`, errored or exited, or sits in `waiting_for_input` on an interactive login/auth prompt or startup error (`scion look <prefix>-<name> --full --plain` once).
++
++Delete every `<prefix>-*` preflight agent (`scion delete`, confirming zero remain in `scion list`), and remove `<store-root>/.preflight/` and `/tmp/pstack-hc`. The detected set for the steps below is the runnable set. Record runnable names (with `<family>/<model>`) and failed names (with reasons) in the file's header comment (step 5), so later runs and the runtime's substitution rule know what was tried.
++
++### 2. Load current state
++
++The default role mapping is the file shape shown in step 5 below (`# defaults: 2`). If `<store-root>/pstack-models.yaml` already exists, read it and treat its `budget` key and its role values as the current choices. Otherwise start from those defaults. Any role key not in step 5 (such as `how-explorer`, `how-explainer`, `why-investigator`, or `why-synthesizer`) is from a retired `# defaults: 1` role; drop it and record it to show in step 3(c).
++
++A file without `# defaults: 2` comes from an older setup whose defaults used `grok-*` (`grok-build`). Before step 3, replace legacy defaults:
++- A `grok-*` harness in `code`, `reflect-tooling`, or `swarm-worker` takes that role's step 5 default.
++- In a panel role (`interrogate`, `architect`, `arena`, `cross-judge`), the 4-seat `# defaults: 1` default list `[claude, codex, gemini, grok-build]` (or any `grok-*` default entry) takes the 3-seat step 5 list `[claude, codex, gemini]` (dropping `grok-*` entries from custom lists or substituting a runnable harness from another model family).
++
 +Every other value is the user's choice and stays, including `inherit`. Tell the user which values you replaced.
  
  ### 3. Budget, map, and confirm
@@ -61,21 +73,21 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/setup-
 +- `small — medium reasoning` (caps roles and panels at `small`)
  
 -**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). Families are the ones Phase A of the **arena** skill defines, so Fable is its own family. Each role has a target effort, which is its default's effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. Most defaults are at `xhigh`, and each budget label names where those land. Set the effort token of every real slug in the role, panel entries included, to the role's target. The effort token is the last token, or the one before a trailing `fast`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max` and `claude-opus-5-5-high-fast` into `claude-opus-5-5-xhigh-fast`, and it keeps `claude-fable-5-2-max`. Gemini tops out at `high`, so under `unlimited` the fallback keeps `gemini-4-carbon-high` as it is. `small` turns the first two into `claude-opus-5-5-medium` and `claude-opus-5-5-low-fast`. Fable 5.2 and Gemini have no fast slug, so never write one.
-+**(b) Apply it.** Build the working table from the step 5 defaults, and on a re-run keep any role you changed by harness, list, or `inherit` (and keep `reflect-judgment: judgment` unless explicitly overridden). `unlimited` keeps the step 5 model aliases (`extra-large` for primary roles and panels, `large` for `swarm-worker`); `large`, `medium`, and `small` cap every role and panel entry at `large`, `medium`, and `small` respectively. An entry pinned to an explicit model ID (not an alias) keeps it. `inherit` does not change. Panel entries written as bare harness names become `{harness: <h>, model: <alias>}` when the budget is not `unlimited`.
++**(b) Apply it.** Build the working table from the step 5 defaults (substituting runnable harnesses where a default is unrunnable, or `inherit` if none is runnable, and deduplicating default panel lists so each panel contains at most one runnable harness per resolved model `family`, falling back to distinct `harness-config` names only when family is unknown), and on a re-run keep any role you changed by harness, list, or `inherit` (and keep `reflect-judgment: judgment` unless explicitly overridden). `unlimited` keeps the step 5 model aliases (`extra-large` for primary roles and panels, `large` for `swarm-worker`); `large`, `medium`, and `small` cap every role and panel entry at `large`, `medium`, and `small` respectively. An entry pinned to an explicit model ID (not an alias) keeps it. `inherit` does not change. Panel entries written as bare harness names become `{harness: <h>, model: <alias>}` when the budget is not `unlimited`.
  
 -**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a vendor other than the parent's, in list order, so order it by preference. Fable and the other Claude models are one vendor. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
-+**(c) Show the roles and confirm.** Show every role with its harness and model, marking any harness not in the runnable set as needing a choice, and list any retired keys step 2 dropped. Ask whether to accept as-is or change specific roles, offering the runnable harness-configs plus `inherit` (the role runs on the caller's own harness and model) as the options. Use the same ask_user pattern. For panel roles (`arena`, `architect`, `interrogate`) the value is a list, and one agent runs per entry, `inherit` included, so the list length sets the fan-out. Keep panel entries on distinct vendors, since panels exist for model diversity. `cross-judge` is also a list, ordered by preference; Arena picks one runnable entry whose vendor differs from the caller's (`inherit` never judges). `swarm-worker` is the default for every worker unless a race or comparison assigns another harness per arm.
++**(c) Show the roles and confirm.** Show every role with its harness, model, and resolved model `family` (noting when multiple runnable harnesses share one family, such as `gemini-cli` and `antigravity` on `google`, or `claude` and `opencode` on `anthropic`), marking any harness not in the runnable set as needing a choice, and list any retired keys step 2 dropped. Ask whether to accept as-is or change specific roles, offering the runnable harness-configs plus `inherit` (the role runs on the caller's own harness and model) as the options. Use the same ask_user pattern. For panel roles (`arena`, `architect`, `interrogate`) the value is a list, and one agent runs per entry, `inherit` included, so the list length sets the fan-out. Keep panel entries on distinct model families (at most one member per `family` by default), since panels exist for model-family diversity. `cross-judge` is also a list, ordered by preference; Arena picks one runnable entry whose model `family` differs from the caller's (`inherit` never judges). `swarm-worker` is the default for every worker unless a race or comparison assigns another harness per arm.
  
  ### 4. Validate
  
 -Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
-+Every harness name written must be in the runnable set from step 1b. `inherit` (and `reflect-judgment: judgment`) always passes. Every `model` is one of the four aliases or an explicit ID the user supplied. If a chosen harness is not available, stop and ask again.
++Every harness name written must be in the runnable set from step 1b. `inherit` (and `reflect-judgment: judgment`) always passes. Every `model` is one of the four aliases or an explicit ID the user supplied (if an explicit model ID changes a multi-provider harness's family, record `{harness: <h>, model: <m>, family: <f>}`). Warn if a panel contains two entries with the same resolved `family` so duplicate-family slots are only kept intentionally. If a chosen harness is not available, stop and ask again.
  
 -### 5. Write the rule
 +### 5. Write the file
  
 -Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
-+Write `<store-root>/pstack-models.yaml` with the `# defaults: 2` marker, the preflight header, a `budget` key holding the chosen label (`unlimited`, `large`, `medium`, or `small`), and the `roles` and `panels` maps using the keys from **pstack-scion-runtime** §3. Overwrite the whole file so re-runs stay idempotent. Shape (defaults, budget `unlimited`):
++Write `<store-root>/pstack-models.yaml` with the `# defaults: 2` marker, the preflight header, a `budget` key holding the chosen label (`unlimited`, `large`, `medium`, or `small`), a `families` map recording each runnable harness-config's resolved model family, and the `roles` and `panels` maps using the keys from **pstack-scion-runtime** §3. Overwrite the whole file so re-runs stay idempotent. Shape (defaults, budget `unlimited`):
  
 -```
 ----
@@ -103,8 +115,12 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/setup-
 -swarm workers: claude-opus-5-5-high-fast
 -architect runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
 -interrogate reviewers: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
-+# preflight <date>: runnable [<names>]; failed [<name>: <reason>, ...]
++# preflight <date>: runnable [<name> (<family>/<model>), ...]; failed [<name>: <reason>, ...]
 +budget: unlimited
++families:           # resolved model family per runnable harness-config (from config.yaml model_aliases)
++  claude: anthropic
++  codex:  openai
++  gemini: google
 +roles:
 +  code:             {harness: claude, model: extra-large}   # feature, refactoring, bug-fix, perf, hillclimb delegates
 +  hardest:          {harness: claude, model: extra-large}   # cross-cutting design, gnarly concurrency
@@ -112,11 +128,11 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/setup-
 +  reflect-judgment: judgment
 +  reflect-tooling:  {harness: codex, model: extra-large}
 +  swarm-worker:     {harness: claude, model: large}
-+panels:             # one agent per entry; list length sets the fan-out (3-vendor default in defaults: 2)
++panels:             # one agent per entry, at most one per model family when available (3-family target in defaults: 2)
 +  interrogate: [claude, codex, gemini]
 +  architect:   [claude, codex, gemini]
 +  arena:       [claude, codex, gemini]
-+  cross-judge: [claude, codex, gemini]   # pick one whose vendor differs from the caller's
++  cross-judge: [claude, codex, gemini]   # pick one whose model family differs from the caller's
  ```
  
  ### 6. Confirm

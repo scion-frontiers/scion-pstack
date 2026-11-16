@@ -1,6 +1,6 @@
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/SKILL.md skills/reflect/SKILL.md
---- upstream/pstack-bf0c7cd/skills/reflect/SKILL.md	2026-11-16 04:14:30.469946203 +0000
-+++ skills/reflect/SKILL.md	2026-11-16 04:28:55.262715641 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/SKILL.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/reflect/SKILL.md	2026-11-16 17:40:34.586202384 +0000
 @@ -1,7 +1,6 @@
  ---
  name: reflect
@@ -28,10 +28,10 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
 -One message, three `Task` calls, `subagent_type: generalPurpose`, agent mode (`readonly: false`). Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and readonly strips MCPs.
 -
 -Each reviewer and the synthesizer name a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-+Launch all three at once, each on its configured role in `pstack-models.yaml` (**pstack-scion-runtime** §3). When a lens's harness differs from yours, start a `pstack-reviewer` Scion agent; when it resolves to your own harness, an in-harness subagent is allowed (**pstack-scion-runtime** §1). Reviewers keep MCP access to look up the tickets, chat threads, and observability traces the transcript references, and write nothing (a Scion-agent reviewer has its template's MCP servers). Substitute unavailable harnesses per **pstack-scion-runtime** §3 and pick each reviewer's reasoning level per the Subagents section of the **poteto-mode** skill.
++Launch all three at once, each on its configured role in `pstack-models.yaml` (**pstack-scion-runtime** §3; when `<store>/pstack-models.yaml` is missing, every lens defaults to `inherit` so unpreflighted harnesses are never spawned). When a lens's harness differs from yours, start a `pstack-reviewer` Scion agent; when it resolves to your own harness (including `inherit`), an in-harness subagent is allowed (**pstack-scion-runtime** §1). Reviewers keep MCP access to look up the tickets, chat threads, and observability traces the transcript references, and write nothing (a Scion-agent reviewer has its template's MCP servers). Substitute unavailable harnesses per **pstack-scion-runtime** §3 and pick each reviewer's reasoning level per the Subagents section of the **poteto-mode** skill.
  
 -| Lens | Role line | Default `model` | Prompt template |
-+| Lens | Role key | Default | Prompt template |
++| Lens | Role key | `# defaults: 2` target (when preflighted; `inherit` if `pstack-models.yaml` is missing) | Prompt template |
  |---|---|---|---|
 -| Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
 -| Tooling | `reflect tooling` | `claude-opus-5-5-high-fast` | `references/tooling-reviewer.md` |
@@ -80,8 +80,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  - Dropped: one line per rejected finding + reason from the synthesizer.
 +- Transcript source: which step 1 sources fed the review.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md skills/reflect/references/divergent-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md	2026-11-16 04:14:30.469946203 +0000
-+++ skills/reflect/references/divergent-reviewer.md	2026-11-16 04:14:30.457946220 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/reflect/references/divergent-reviewer.md	2026-11-16 13:22:15.443230535 +0000
 @@ -18,7 +18,7 @@
  
  ## Scope to skills and tools the session actually used
@@ -92,8 +92,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md skills/reflect/references/judgment-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md	2026-11-16 04:14:30.469946203 +0000
-+++ skills/reflect/references/judgment-reviewer.md	2026-11-16 04:14:30.457946220 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/reflect/references/judgment-reviewer.md	2026-11-16 13:22:15.443230535 +0000
 @@ -17,7 +17,7 @@
  
  ## Scope to skills and tools the session actually used
@@ -104,8 +104,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md skills/reflect/references/tooling-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md	2026-11-16 04:14:30.469946203 +0000
-+++ skills/reflect/references/tooling-reviewer.md	2026-11-16 04:14:30.457946220 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/reflect/references/tooling-reviewer.md	2026-11-16 13:22:15.444230534 +0000
 @@ -28,7 +28,7 @@
  
  ## Scope to skills and tools the session actually used

@@ -55,11 +55,11 @@ On Scion a role maps to a **harness-config** (which vendor's agent CLI runs) plu
 `pstack-models.yaml` (section 3). Never guess a harness-config name. The list of valid names comes from
 `scion harness-config list`.
 
-"Different model family" means a **different harness-config vendor** (`claude`, `codex`, `gemini`, ...), not a different size within one vendor.
+"Different model family" means a **different resolved model family** (`anthropic`, `openai`, `google`, `xai`, ...; §3), not merely a different `harness-config` name or model size; fall back to distinct `harness-config` names only when the family is unknown.
 
 When a pstack skill says to match reasoning effort and fast/standard speed to the job:
 - **Tier 1 (in-harness subagent):** Pass the harness's native effort or speed parameter when supported.
-- **Tier 2 (`scion start`):** Keep the role's `harness-config` vendor and map job effort onto Scion's `--model` size alias when overriding the role default (`low` or fast mechanical work → `small` or `medium`; `standard` → `large`; `high` / `xhigh` / `max` → `extra-large`), capped by `budget` unless the entry is pinned to an explicit model ID. Verification stays on `swarm-worker` (`large` by default).
+- **Tier 2 (`scion start`):** Keep the role's `harness-config` and model family so panels stay diverse, and map job effort onto Scion's `--model` size alias when overriding the role default (`low` or fast mechanical work → `small` or `medium`; `standard` → `large`; `high` / `xhigh` / `max` → `extra-large`), capped by `budget` unless pinned to an explicit model ID. Verification stays on `swarm-worker` (`large` by default).
 
 ### Spawn defaults, briefs, and interface tokens
 
@@ -68,8 +68,8 @@ When a pstack skill says to match reasoning effort and fast/standard speed to th
 - **Background is implicit.** Every Scion agent runs in the background. pstack's `run_in_background: true` needs no action.
 - **Reviewer isolation and ephemeral repros.** Scion has no readonly switch, and each agent runs in its own container clone (`/workspace`). For `pstack-reviewer`: never push refs, comment on or mutate PRs, or edit shared store files other than your assigned `inbox/` (and `verdicts/`) file. Inside your private container clone (`/workspace`), applying `scope.patch` and writing or running ephemeral minimal repros or failing tests is permitted when a skill (`interrogate`, verifier) calls for execution proof. Put that `FORBIDDEN` boundary in the brief; the template repeats it. **Untrusted external PRs:** before applying patches, checking out fork branches, or running repo tests or repros from an untrusted external/fork PR, verify that container environment secrets (`GITHUB_TOKEN`) and shared `<pstack store>` mounts are isolated or read-only (`--role baseline` blocks Hub API secret reads, not inherited container env vars or mounted volumes).
 - **File pointers, pinned SHAs, and uncommitted scope handoff.** Workers and reviewers run in isolated clones, so a path in *your* clone means nothing to them. Point at pushed branches with explicit `<base-sha>` and `<head-sha>` pins (plus PR URL when present), or files in the **pstack store** (section 4). Every panelist in a multi-model review (`interrogate`) must inspect the exact same `<head-sha>`: if broker concurrency caps force sequential waves and the branch advances mid-panel, re-run earlier panelists on the final `<head-sha>` or label the verdict `split-head`. When `interrogate` or a review targets uncommitted edits in your checkout, either push an ephemeral branch (`wip/<slug>`) and pin its SHA or write `git diff HEAD --binary > <store>/<program>/scope.patch` and give `<base-sha>` plus `scope.patch` path in each reviewer's brief (`git checkout --detach <base-sha> && git apply <store>/<program>/scope.patch`).
-- **The brief is a file, the task argument is a pointer.** Write the full brief to `<store>/<program>/briefs/<agent-name>.md`. The `scion start` task argument is one short paragraph: role, the brief path, and the REPORT line. Never inline a diff or a long brief into the task argument; inline tasks above ~31 KB crash agents at start.
-- **Brief checklist.** Size the brief to the unit (collapse to a short paragraph for a trivial unit), covering: `GOAL`, `SCOPE`, `CONTEXT`, `ACCEPTANCE`, `VERIFY`, `TIMEBOX`, `FORBIDDEN`, `REPORT`, and `STANDING` (a pointer to `notes.md` in the store, or inline constraints).
+- **The brief is a file, the task argument is a pointer.** Write the full brief to `<store>/<program>/briefs/<agent-name>.md`, and write the resolved `PSTACK_STORE` path (plus `<store>/<program>/`) explicitly into every child brief so children never have to glob `/scion-volumes/*/` (section 4). The `scion start` task argument is one short paragraph: role, the brief path, and the REPORT line. Never inline a diff or a long brief into the task argument; inline tasks above ~31 KB crash agents at start.
+- **Brief checklist.** Size the brief to the unit (collapse to a short paragraph for a trivial unit), covering: `PSTACK_STORE` (plus `<store>/<program>/`), `GOAL`, `SCOPE`, `CONTEXT`, `ACCEPTANCE`, `VERIFY`, `TIMEBOX`, `FORBIDDEN`, `REPORT`, and `STANDING` (a pointer to `notes.md` in the store, or inline constraints).
 - **The brief carries the report channel.** End every brief with: "When done, write your REPORT block to `<store>/<program>/inbox/<your-agent-name>.md`, send it to `@<lead-agent-name>` with `scion message`, then signal task completion." The inbox file is the primary artifact, and the message is the wake-up.
   - **Worker `REPORT` required items:** `status`, `branch`, `head SHA`, `PR URLs`, `verdict`, `commands run + outcomes`, `deviations`, and `follow-ups`.
   - **Verifier verdict tokens:** When verifying a PR or branch head, also write `<store>/<program>/verdicts/<pr-or-unit>-<sha7>-<agent-name>.md` using one of: `live-ui-verified | live-cli-verified | unit-test-verified | type-check-only | verifier-blocked | verifier-failed`. `verifier-blocked` is never a pass. CI green is an input, not a verdict.
@@ -78,7 +78,7 @@ When a pstack skill says to match reasoning effort and fast/standard speed to th
 
 - A Scion worker's completion arrives in three ways: a state-change notification, the worker's REPORT message, and its inbox file. Treat either the REPORT message or a `COMPLETED` notification as the wake-up, then read the inbox file. If there is no inbox file and no message, recover the report once with `scion look <name> --full --plain` before you call the worker failed.
 - While you wait, run `sciontool status blocked "<what you are waiting on>"` and end your turn. Do not poll, sleep, or `scion look` in a loop.
-- A worker that goes silent does not get messaged as a probe (messaging wakes an idle agent). Probe read-only instead: `scion list`, its pushed branch, its `inbox/` or `verdicts/` file, and `scion look <name> --full --plain` once.
+- A worker that goes silent does not get messaged as a probe (messaging wakes an idle agent). Probe read-only instead: `scion list`, its pushed branch, its `inbox/` or `verdicts/` file, and `scion look <name> --full --plain` once. If `scion list` shows `waiting_for_input` (or an `agent.input-needed` event arrives) without a task question in `scion message`, inspect `scion look <name> --full --plain` once: when the child sits on an interactive login or auth prompt (`login`, `setup-token`, `auth login`, `"started without credentials"`, device-auth URL), a shell drop, or a harness startup serialization error, do not answer or wait on it. Delete the container (`scion delete <name>`), treat that `harness-config` as unavailable for the session (section 3), and respawn on a runnable substitute.
 - Prefer `scion look <name> --full --plain` while the container exists; `scion logs` may return 403 or 404 depending on Hub and broker setup even for healthy completed agents, so never treat a `scion logs` error alone as crash evidence. A worker that crashes at start leaves no `inbox/` file, error state in `scion list`, and failed or empty `scion look` once the container is gone. Retry once with a pointer-only task. On a second crash, treat that harness-config as unavailable (section 3) and move on.
 
 ### Getting the result back
@@ -96,7 +96,7 @@ Review a code delegate's diff with `git fetch origin <branch> && git diff <base>
 | `/goal` | Write the full objective to `<store>/<program>/goal.md` (section 4) and re-read it at every audit tick. |
 | `environment: "cloud"` / `"local"` | Not applicable. Every agent is a container in its own clone. "Needs this machine" becomes "needs a template service, mount, or secret". Flag it as a gate if the template does not have one. |
 | `cloud_base_branch` | Put the base branch in the brief. The worker runs `git fetch origin <branch> && git checkout -B <work-branch> origin/<branch>`. |
-| "the Cursor dashboard", "cloud agent status" | `scion list`, `scion look <name>` |
+| "the Cursor dashboard", "cloud agent status" | `scion list`, `scion look <name> --full --plain` (`waiting_for_input` with no `scion message` question → inspect `scion look` once for an auth/login prompt or startup error, `scion delete <name>`, and mark the harness unavailable per §1 and §3) |
 | "After a Cursor restart" | After the lead is resumed or replaced. Workers are separate containers and survive it. Reattach by agent name, branch, and PR. |
 | `agent-transcripts/` (your own chat history) | No shared transcript store exists. Use these, in order. (0) Your own harness's local session log, if it has one you can read (for example Claude Code's `~/.claude/projects/*/*.jsonl`); it only covers your own container. (1) The trail file you wrote (show-me-your-work `decisions.tsv`) and `notes.md`. (2) `scion conversation` history for messages. (3) `scion look <agent> --full --plain` for another agent's terminal output while its container exists (prefer over `scion logs <agent>`, which may return 403 or 404 depending on Hub/broker setup). State in your reply which source you used. |
 | `mcps/` directory, "available MCPs" | The MCP servers your harness lists. Template `mcp_servers` adds more. |
@@ -114,19 +114,23 @@ Review a code delegate's diff with `git fetch origin <branch> && git diff <base>
 
 ## 3. pstack-models.yaml
 
-pstack's per-role model table (`# defaults: 2`), restated as harness-configs. `setup-pstack` writes it. Every
-pstack skill that says "your configured X model" reads it. If the file is absent, the defaults
-below apply. Unrecognized legacy keys from `# defaults: 1` (`how-explorer`, `how-explainer`, `why-investigator`, `why-synthesizer`) are ignored at runtime and dropped when `setup-pstack` re-runs; if `# defaults: 2` is absent, suggest re-running `setup-pstack` once per session.
+pstack's per-role model table (`# defaults: 2`), restated as harness-configs and resolved model families. `setup-pstack` preflights harnesses and writes `<store>/pstack-models.yaml`. Every pstack skill that says "your configured X model" reads it.
 
-Listed is not the same as runnable. A harness-config can be listed and still fail at start (auth, missing image, crash). `setup-pstack` preflights every entry and records the result. When a harness-config is unlisted or known not to start, pick the nearest runnable one from another vendor for panel roles, or the same vendor for single roles. Note the substitution in your reply.
+**When `<store>/pstack-models.yaml` is missing (`inherit` fallback).** Never spawn unpreflighted harnesses: until `setup-pstack` writes `<store>/pstack-models.yaml`, default every role (`code`, `hardest`, `judgment`, `reflect-judgment`, `reflect-tooling`, `swarm-worker`) to `inherit` (omit `--harness-config` and `--model`) and every 3-seat panel (`interrogate`, `architect`, `arena`, `cross-judge`) to `[inherit, inherit, inherit]`. Panels keep their 3-agent fan-out on `inherit` and flag 1-family (1-vendor) degraded diversity above the findings; `arena` Phase C skips `cross-judge` with notice (since `inherit` shares the caller's family), and `show-me-your-work` runs its trail `pstack-reviewer` on `inherit` with a 1-family note in `Attention`. Suggest `setup-pstack` once per project (or once per session if missing or lacking `# defaults: 2`), without blocking. Retired `# defaults: 1` keys (`how-explorer`, `how-explainer`, `why-investigator`, `why-synthesizer`) are ignored at runtime and dropped when `setup-pstack` re-runs.
 
-**Degraded diversity.** When a panel collapses to fewer vendors than it lists (in the worst case, one), still run it at the listed fan-out, varying model size where you can. Label the reviewers by the vendor that actually ran. State in the verdict, above the findings, that the panel was N-vendor, so agreement is weaker evidence. Prefer an independent non-model lever, such as a test corpus, a mutation run, or a benchmark, to make up for the lost diversity.
+Listed is not the same as runnable. A harness-config can be listed and still fail at start (auth prompt in `waiting_for_input`, missing image, crash). `setup-pstack` preflights each entry and records its resolved model `family` (`anthropic`, `openai`, `google`, `xai`, ...) from `config.yaml` `model_aliases` / `model` in `families:` (or `{harness, model, family}` when an explicit model ID changes a multi-provider harness's family, such as `opencode` on Claude vs Gemini). When `families` is absent, infer family from the concrete model ID (`claude-*` → `anthropic`, `gpt-*` / `o1*` / `o3*` / `o4*` → `openai`, `gemini-*` → `google`, `grok-*` → `xai`), falling back to distinct `harness-config` names only when unknown. When a configured harness is unlisted or unavailable, substitute a runnable entry from `pstack-models.yaml` of another model family for panel/cross-review roles, or the same family (else `inherit`) for single roles, noting the substitution.
+
+**Degraded diversity.** Count panel diversity by distinct resolved **model families**, not `harness-config` names alone (`gemini-cli` and `antigravity` on Gemini count as 1 family; `claude` and `opencode` on Claude count as 1 family). When a panel collapses to fewer families than it lists (including 1 under `inherit` fallback), still run at the listed fan-out, varying model size where you can. Label reviewers by harness-config and family, state above the findings that the panel was N-family (N-vendor), and prefer an independent non-model lever (test corpus, mutation run, benchmark) to compensate.
 
 ```yaml
 # pstack-models.yaml
 # defaults: 2
-# preflight <date>: runnable [<names>]; failed [<name>: <reason>, ...]
+# preflight <date>: runnable [<name> (<family>/<model>), ...]; failed [<name>: <reason>, ...]
 budget: unlimited
+families:           # resolved model family per runnable harness-config (from config.yaml model_aliases)
+  claude: anthropic
+  codex:  openai
+  gemini: google
 roles:
   code:             {harness: claude, model: extra-large}   # feature, refactoring, bug-fix, perf, hillclimb delegates
   hardest:          {harness: claude, model: extra-large}   # cross-cutting design, gnarly concurrency
@@ -134,17 +138,14 @@ roles:
   reflect-judgment: judgment
   reflect-tooling:  {harness: codex, model: extra-large}
   swarm-worker:     {harness: claude, model: large}
-panels:             # one agent per entry; list length sets the fan-out (3-vendor default in defaults: 2)
+panels:             # one agent per entry, at most one per model family when available (3-family target in defaults: 2)
   interrogate: [claude, codex, gemini]
   architect:   [claude, codex, gemini]
   arena:       [claude, codex, gemini]
-  cross-judge: [claude, codex, gemini]   # pick one whose vendor differs from the caller's
+  cross-judge: [claude, codex, gemini]   # pick one whose model family differs from the caller's
 ```
 
-A missing role falls back to `judgment` (prose, synthesis, explanation) or `code` (anything that writes code). `budget` records what `setup-pstack` applied and caps per-job `--model` effort overrides unless an entry is pinned to an explicit model ID.
-
-Panel entries are harness-config names and run at `model: extra-large` unless the entry is written
-as `{harness: <h>, model: <m>}`.
+Inside an existing `pstack-models.yaml`, a missing role key falls back to `judgment` (prose, synthesis, explanation), `code` (code writers), or the `# defaults: 2` target above when its harness is in the file's runnable set (else `inherit`). `budget` caps per-job `--model` effort overrides unless pinned to an explicit model ID. Panel entries run at `model: extra-large` unless written as `{harness: <h>, model: <m>}` (or `{harness: <h>, model: <m>, family: <f>}`).
 
 ## 4. The pstack store
 
@@ -152,7 +153,8 @@ pstack's orchestrate playbook, autopilot playbooks, and show-me-your-work keep s
 On Scion that store must be readable by every agent on the program, so it lives on a
 **project shared directory**, not in your clone.
 
-- Resolve the root once at task start. First, if `$PSTACK_STORE` is set, use it. Second, use a mounted shared dir with `pstack/` appended: `ls -d /scion-volumes/*/` (or `.scion-volumes/*/`), where a dir named `scratchpad` wins. Check the mount itself; `scion shared-dir list` can report none while a volume is mounted and writable. Otherwise there is no shared store, so ask the human to mount a project shared volume (or set `PSTACK_STORE`). Until then, keep the store in your clone and inline everything into briefs.
+- **Canonical default:** store root = `$PSTACK_STORE`, else `/scion-volumes/scratchpad/pstack`, program dir `<store>/<program-slug>/`.
+- Resolve the root once at task start: (1) `$PSTACK_STORE` if set; (2) a mounted writable shared dir with `pstack/` appended (`ls -d /scion-volumes/*/` or `.scion-volumes/*/`, where `scratchpad` wins; `mkdir -p <store>` on first use — check the mount directly, since `scion shared-dir list` can report none while a volume is mounted); (3) otherwise ask the human to mount a project shared volume (`scratchpad`) or set `PSTACK_STORE`, keeping the store in your clone and inlining context into briefs until then. Pass the resolved `PSTACK_STORE` path (and `<store>/<program-slug>/`) explicitly in every child brief (§1).
 - Layout: `<root>/pstack-models.yaml`, and `<root>/<program-slug>/` for each program (ad-hoc runs outside a program use `adhoc-<yyyymmdd>-<topic>`). Program files never sit at the store root, because two programs would collide there:
   - `notes.md` — single-writer coordinator project tracker (`pstack-lead`), standing orders, open gates, and active schedule IDs + kinds (`one-shot` vs `recurring`, matching `orchestrate.md`).
   - `goal.md` — durable program objective where autopilot playbooks arm `/goal`.

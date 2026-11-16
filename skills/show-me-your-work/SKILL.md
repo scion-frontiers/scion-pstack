@@ -42,7 +42,7 @@ A run is one agent conversation, including its later turns and any summary of it
 
 ## Where it lives
 
-By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the program's dir in the pstack store (`<store-root>/<program-slug>/decisions.tsv`, **pstack-scion-runtime** §4), so the cross-vendor reviewer and a replacement lead can read it. With no shared store, keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
+By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the program's dir in the pstack store (`<store-root>/<program-slug>/decisions.tsv`, **pstack-scion-runtime** §4), so the cross-model reviewer and a replacement lead can read it. With no shared store, keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
 
 Commit it only when the work is ambitious enough that a reviewer needs the trail to trust the result. Then copy it into the repo, since the store stays out of commits.
 
@@ -63,7 +63,7 @@ Correct the log, not the story. The audit never edits or removes a row, even an 
 
 ## Cross-model review of the trail
 
-Before handing back, spawn a `pstack-reviewer` Scion agent on a harness-config from a different vendor than the one that did the work (**pstack-scion-runtime** §1). Self-review, or an in-harness subagent on your own model, is not a substitute. Point the brief at the trail's store path, the conversation ref, the branches and PRs, and the agent names, not at your clone. The reviewer reads the audit trail and those sources, then flags what the user should pay attention to via `inbox/` and `scion message`. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Before handing back, spawn a `pstack-reviewer` Scion agent on a harness-config from a different model family than the one that did the work (**pstack-scion-runtime** §1 and §3; fall back to a different runnable `harness-config` only when model family is unknown, or to `inherit` with a 1-family degraded-review note in `Attention` when no second runnable family exists or `pstack-models.yaml` is missing). Self-review, or an in-harness subagent on your own model, is not a substitute. Point the brief at the trail's store path, the conversation ref, the branches and PRs, and the agent names, not at your clone. The reviewer reads the audit trail and those sources, then flags what the user should pay attention to via `inbox/` and `scion message`. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in those sources.

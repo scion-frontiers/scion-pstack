@@ -1,6 +1,6 @@
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/architect/SKILL.md skills/architect/SKILL.md
---- upstream/pstack-bf0c7cd/skills/architect/SKILL.md	2026-11-16 01:31:59.492771889 +0000
-+++ skills/architect/SKILL.md	2026-11-16 02:07:52.050727495 +0000
+--- upstream/pstack-bf0c7cd/skills/architect/SKILL.md	2026-11-16 13:22:15.442230537 +0000
++++ skills/architect/SKILL.md	2026-11-16 17:40:29.668209379 +0000
 @@ -1,7 +1,6 @@
  ---
  name: architect
@@ -14,13 +14,13 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/archit
  Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
  
 -Take the runners from the `architect runners` line in the `pstack-models.mdc` rule, in place of the `arena runners` line. If the rule or that line is missing, use `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
-+Take the runners from `panels.architect` in `pstack-models.yaml` (**pstack-scion-runtime** §3), in place of `panels.arena`. If the file or key is missing, use the default panel in **pstack-scion-runtime** §3 (`[claude, codex, gemini]`). Alias and unavailable entries follow the runner rules in the **arena** skill's Phase A.
++Take the runners from `panels.architect` in `pstack-models.yaml` (**pstack-scion-runtime** §3), in place of `panels.arena`. Resolve missing-file (`[inherit, inherit, inherit]`, flagging 1-family degraded diversity) and missing-key fallbacks per **pstack-scion-runtime** §3 so unpreflighted harnesses are never spawned. Alias and unavailable entries follow the runner rules in the **arena** skill's Phase A.
  
  Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
  
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/architect/references/runner-prompt.md skills/architect/references/runner-prompt.md
---- upstream/pstack-bf0c7cd/skills/architect/references/runner-prompt.md	2026-11-16 01:31:59.492771889 +0000
-+++ skills/architect/references/runner-prompt.md	2026-11-16 02:07:58.850717991 +0000
+--- upstream/pstack-bf0c7cd/skills/architect/references/runner-prompt.md	2026-11-16 13:22:15.443230535 +0000
++++ skills/architect/references/runner-prompt.md	2026-11-16 13:22:15.446230531 +0000
 @@ -1,6 +1,6 @@
  # Architect runner prompt
  
