@@ -2,7 +2,7 @@
 
 **You own the skill's voice.**
 
-1. Follow the agentskills.io format: `SKILL.md` with `name` (kebab-case, matching the directory) and `description` frontmatter. Project-local skills go in `.scion/skills/<name>/`.
+1. Follow the agentskills.io format: `SKILL.md` with `name` (kebab-case, matching the directory) and `description` frontmatter. Project-local skills go in `.scion/skills/<name>/` (see **pstack-scion-runtime** §2).
 2. Validate the skill: frontmatter has `name` and `description`, referenced files exist, cross-skill links resolve.
 3. Test cases if structural. Skip if subjective.
 4. Run **Opening a PR**.
