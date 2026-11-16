@@ -14,8 +14,8 @@ The snapshots are in `upstream/pstack-bf0c7cd/` and `upstream/cursor-team-kit-bf
 | Template | Role | Replaces |
 |---|---|---|
 | `pstack-lead` | Entry point. Poteto-mode is always on. Matches each request to a playbook, delegates, reviews, and replies. Also serves as the orchestrate coordinator and as a track sub-coordinator. | the user's Cursor chat running `/poteto-mode` |
-| `pstack-agent` | Brief-driven worker in pstack style: code delegates, PR owners, arena candidates, stackers, babysitters. | `poteto-agent` subagent, writing `generalPurpose` subagents |
-| `pstack-reviewer` | Read-only panel member: interrogate adversary, architect runner, arena cross-judge, verifier, show-me-your-work trail reviewer. It may apply `scope.patch` and run ephemeral repros or tests inside its private container clone, never pushing refs, mutating PRs, or writing shared store files outside its own `inbox/` or `verdicts/` file. Its vendor is set per spawn, so panels differ by vendor. | readonly `generalPurpose` subagents on different models |
+| `pstack-agent` | Brief-driven worker in pstack style: code delegates, PR owners, arena code/branch candidates, stackers, babysitters. | `poteto-agent` subagent, writing `generalPurpose` subagents |
+| `pstack-reviewer` | Read-only panel member: interrogate adversary, architect Phase B runner, arena cross-judge, verifier, show-me-your-work trail reviewer. It may apply `scope.patch` and run ephemeral repros or tests inside its private container clone, never pushing refs, mutating PRs, or writing shared store files outside its own `inbox/`, `verdicts/`, or assigned `arena-<slug>/candidate-<n>/` dir (for `architect` design packages). Its vendor is set per spawn, so panels differ by vendor. | readonly `generalPurpose` subagents on different models |
 | `pstack-comment-sicko` | Comment hunter behind `no-comments`. It edits only comments, and only on its own `<branch>-sicko` branch. It never touches application code. | `Comment Sicko` subagent |
 
 Harness and model are **not** pinned in templates. The lead picks them per spawn from
@@ -38,7 +38,7 @@ Adapted (copied into `skills/`, minimal edits, a `PORT-NOTES.md` beside each —
 `poteto-mode` (`SKILL.md`, the playbooks with host references, and `scripts/check-plan.*`),
 `setup-pstack` (rewritten to preflight harnesses and write `pstack-models.yaml`), `interrogate`,
 `arena`, `swarm`, `how`, `reflect`, `recall`, `show-me-your-work`, `no-comments`,
-`architect` (default panel + runner output paths), `create-verification-skill`,
+`architect` (default panel + `pstack-reviewer` store-only runners), `create-verification-skill`,
 `maintain-verification-skill`, `create-formal-verification-skill`,
 `maintain-formal-verification-skill`, `automate-me`, `ketchup`, `poteto-help`.
 
@@ -65,4 +65,4 @@ Dropped or deferred:
 ## Shared state
 
 The store root resolves as `$PSTACK_STORE`, then the project shared dir (`/scion-volumes/<name>/pstack`), then a gate.
-Each program gets `<root>/<slug>/`, with `notes.md` as the coordinator's one-writer tracker alongside `decisions.tsv`, `goal.md`, `resume.md`, `briefs/`, `inbox/`, and `verdicts/`. `pstack-models.yaml` sits at `<root>/pstack-models.yaml`.
+Each program gets `<root>/<slug>/`, with `notes.md` as the coordinator's one-writer tracker alongside `decisions.tsv`, `goal.md`, `resume.md`, `briefs/`, `inbox/`, `verdicts/`, and `arena-<slug>/candidate-<n>/`. `pstack-models.yaml` sits at `<root>/pstack-models.yaml`.
