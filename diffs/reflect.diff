@@ -1,6 +1,6 @@
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/SKILL.md skills/reflect/SKILL.md
---- upstream/pstack-bf0c7cd/skills/reflect/SKILL.md	2026-11-16 01:31:59.500771878 +0000
-+++ skills/reflect/SKILL.md	2026-11-16 02:11:25.731427774 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/SKILL.md	2026-11-16 04:14:30.469946203 +0000
++++ skills/reflect/SKILL.md	2026-11-16 04:28:55.262715641 +0000
 @@ -1,7 +1,6 @@
  ---
  name: reflect
@@ -14,7 +14,7 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  ## 1. Locate the active transcript
  
 -Before fanning out, find this conversation's transcript in the `agent-transcripts/` directory the system prompt names. Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
-+Before fanning out, assemble this session's transcript from the sources in **pstack-scion-runtime** §2 (`agent-transcripts/` row), in order: your own harness's local session log if readable inside your container, your trail file (`decisions.tsv`) and `notes.md`, `scion conversation` history for this request, and `scion logs` / `scion look` for the agents you delegated to. Stay inside this session's conversation and agents. Do not pull other projects' conversations or logs. That crosses project boundaries and reads private threads.
++Before fanning out, assemble this session's transcript from the sources in **pstack-scion-runtime** §2 (`agent-transcripts/` row), in order: your own harness's local session log if readable inside your container, your trail file (`decisions.tsv`) and `notes.md`, `scion conversation` history for this request, and `scion look <agent> --full --plain` (or `scion logs <agent>` when available) for the agents you delegated to. Stay inside this session's conversation and agents. Do not pull other projects' conversations or logs. That crosses project boundaries and reads private threads.
  
 -```bash
 -ls -t <agent-transcripts>/*.jsonl <agent-transcripts>/*/*.jsonl <agent-transcripts>/*/subagents/*.jsonl 2>/dev/null | head -10
@@ -80,8 +80,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  - Dropped: one line per rejected finding + reason from the synthesizer.
 +- Transcript source: which step 1 sources fed the review.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md skills/reflect/references/divergent-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md	2026-11-16 01:31:59.500771878 +0000
-+++ skills/reflect/references/divergent-reviewer.md	2026-11-16 02:11:27.024425936 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/divergent-reviewer.md	2026-11-16 04:14:30.469946203 +0000
++++ skills/reflect/references/divergent-reviewer.md	2026-11-16 04:14:30.457946220 +0000
 @@ -18,7 +18,7 @@
  
  ## Scope to skills and tools the session actually used
@@ -92,8 +92,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md skills/reflect/references/judgment-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md	2026-11-16 01:31:59.500771878 +0000
-+++ skills/reflect/references/judgment-reviewer.md	2026-11-16 02:11:28.547423771 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/judgment-reviewer.md	2026-11-16 04:14:30.469946203 +0000
++++ skills/reflect/references/judgment-reviewer.md	2026-11-16 04:14:30.457946220 +0000
 @@ -17,7 +17,7 @@
  
  ## Scope to skills and tools the session actually used
@@ -104,8 +104,8 @@ diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflec
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md skills/reflect/references/tooling-reviewer.md
---- upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md	2026-11-16 01:31:59.500771878 +0000
-+++ skills/reflect/references/tooling-reviewer.md	2026-11-16 02:11:29.966421752 +0000
+--- upstream/pstack-bf0c7cd/skills/reflect/references/tooling-reviewer.md	2026-11-16 04:14:30.469946203 +0000
++++ skills/reflect/references/tooling-reviewer.md	2026-11-16 04:14:30.457946220 +0000
 @@ -28,7 +28,7 @@
  
  ## Scope to skills and tools the session actually used
