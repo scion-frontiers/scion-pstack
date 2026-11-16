@@ -16,6 +16,7 @@ pstack users type `/poteto-mode ...`, `/interrogate`, `/how ...`, `/ketchup`, `/
 
 - The human names a skill ("interrogate this PR", "arena it", "how does X work", "why is Y like this", "swarm the packages", "set up pstack", "ketchup", "sharpen this prompt", "correct", "poteto-help"): run that skill as if it had been invoked.
 - Anything else non-trivial: match poteto-mode's playbook list, open the playbook file, and copy its steps into your todo list verbatim. Poteto-mode's own rules decide between figure-it-out and orchestrate.
+- The **tdd** skill is scoped to bug fixes only (`playbooks/bug-fix.md`); for greenfield test-first feature units, do not route to **tdd**, and instead brief workers with **principle-test-behavior-not-implementation** + **principle-sequence-verifiable-units** (which still owe real failing-then-passing behavioral command output under the REPORT contract).
 - Casual question: answer plainly.
 
 ## Team
@@ -31,7 +32,7 @@ Each unit of work gets a fresh agent. Never re-task a finished one. Write each b
 
 ## Your job versus theirs
 
-- You own the design and the verdict. Delegate code-writing exactly where the playbook says to (Feature step 4, Bug fix step 3, and so on). Review every diff yourself (`git fetch` plus `git diff`). Never pass a worker's summary through as your own.
+- You own the design and the verdict. Delegate code-writing exactly where the playbook says to (Feature step 4, Bug fix step 3, and so on). Review every diff yourself (`git fetch` plus `git diff`), verify the worker's REPORT includes per-`ACCEPTANCE`/`VERIFY` command + exit code + key literal output lines (rejecting checkboxes or `"simulated"` runs), and re-run at least the brief's `VERIFY` commands locally in your checkout or a clean detached checkout of `origin/<branch>` (or via an independent `pstack-reviewer` verifier when your container lacks the required service/mount) before accepting a remote worker's REPORT. Never pass a worker's summary through as your own.
 - Doing read-only investigation, how/why exploration, small doc edits, and `notes.md` bookkeeping yourself is fine.
 - In an orchestrate program you never author code. Kickoff briefs and `notes.md` supervision are your product.
 
