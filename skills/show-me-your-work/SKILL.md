@@ -20,7 +20,7 @@ Copy `references/decision-log-template.tsv` (the header row) to start a clean lo
 - **evidence.** A link or path that proves it: commit SHA, PR number, `file:line`, or an artifact, trace, or screenshot path. Never a paragraph.
 - **result.** The outcome or predicate state: `tests green`, `reverted`, `pixel-diff 0`, `INCONCLUSIVE`, `open`.
 
-An example, plain-spoken so a reviewer reads it at a glance. This is illustration only. Don't copy these rows into a real log.
+An example, plain-spoken so a reviewer reads it at a glance.
 
 ```
 ts	phase	decision	why	evidence	result
@@ -38,32 +38,32 @@ Use the helper `bash scripts/log.sh <logfile> <phase> <decision> <why> <evidence
 
 Log decision points and checkpoints, not every action: a fork chosen, a unit completed with its verification result, a pivot or revert with its trigger, a blocker surfaced, a gate fixed. For loop runs, one row per iteration. Skip the trivial and self-evident.
 
+A run is one agent conversation, including its later turns and any summary of it. A pickup, a replacement agent, or a new chat starts a new run. When a run adds to a log that already has rows, its first row has phase `start`, and so does its first row after another run's `start` row. So a run that comes back to a log in a later turn first reads the log's last rows to see whether another run wrote since. A `start` row names the `ts` range of the rows before it that this run did not write, and its evidence names this run, such as its agent name. Use phase `start` for nothing else.
+
 ## Where it lives
 
-By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the program's dir in the pstack store (`<store-root>/<program-slug>/decisions.tsv`, the **pstack-scion-runtime** skill, section 4), so the reviewer and a replacement lead can read it. With no shared store, keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
+By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the program's dir in the pstack store (`<store-root>/<program-slug>/decisions.tsv`, **pstack-scion-runtime** §4), so the cross-vendor reviewer and a replacement lead can read it. With no shared store, keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
 
 Commit it only when the work is ambitious enough that a reviewer needs the trail to trust the result. Then copy it into the repo, since the store stays out of commits.
 
 ## Rules
 
-- One row is one decision or checkpoint.
 - Append-only. A wrong call gets a new row that supersedes it. Never edit or delete history.
 - Prefer evidence produced by committed scripts over hand-made one-offs (the **encode-lessons-in-structure** principle skill).
 
 ## Audit the log against the transcript
 
-At the end of the run, before handing back, check the log told the truth. Scion keeps no transcript store, so rebuild this run from the sources the runtime's section 2 names: the conversation the request came from (`scion conversation messages <ref>`), the REPORT messages and `inbox/` reports of the agents you ran, `scion logs <agent>` for any agent whose actions a row depends on (yourself included), and the pushed branches and PRs. Stay inside this program's agents and conversations. Walk the log against what actually happened:
+At the end of the run, before handing back, check the log told the truth. Scion keeps no shared `agent-transcripts/` directory, so rebuild this run from **pstack-scion-runtime** §2's sources: your harness's local session log if readable, the conversation the request came from (`scion conversation messages <ref>`), the REPORT messages and `inbox/` reports of the agents you ran, `scion logs <agent>` for any agent whose actions a row depends on (yourself included), and the pushed branches and PRs. Stay inside this program's agents and conversations. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:
 
-- Every row maps to a real action. Cut invented or aspirational entries.
-- Each row's evidence resolves and shows what the row claims.
+- Check that every row maps to a real decision or action.
+- Check that each row's evidence resolves and shows what the row claims.
 - A fork, pivot, or abandoned approach that shaped the work but isn't logged is a gap. Add it.
-- Drop padding.
 
-Fix the log, not the story. If the work diverged from what a row claims, the row is wrong.
+Correct the log, not the story. The audit never edits or removes a row, even an invented one. When a row records neither a real decision nor a real action, or its claim or evidence is wrong, add a row that supersedes it with what actually happened and a pointer that resolves. This audit does not check rows outside this run's stretches. If this run's own work shows one of them is wrong, supersede it like any wrong call.
 
 ## Cross-model review of the trail
 
-Before handing back, spawn a `pstack-reviewer` Scion agent on a harness-config from a different vendor than the one that did the work (the runtime's section 1). Self-review, or an in-harness subagent on your own model, is not a substitute. Point the brief at the trail's store path, the conversation ref, the branches and PRs, and the agent names, not at your clone. The reviewer reads the audit trail and those sources, then reports back by message. It flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky.
+Before handing back, spawn a `pstack-reviewer` Scion agent on a harness-config from a different vendor than the one that did the work (**pstack-scion-runtime** §1). Self-review, or an in-harness subagent on your own model, is not a substitute. Point the brief at the trail's store path, the conversation ref, the branches and PRs, and the agent names, not at your clone. The reviewer reads the audit trail and those sources, then flags what the user should pay attention to via `inbox/` and `scion message`. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in those sources.

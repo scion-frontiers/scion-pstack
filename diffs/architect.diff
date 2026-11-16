@@ -1,6 +1,6 @@
-diff -ruN -x PORT-NOTES.md upstream/pstack-5ff7a35/skills/architect/SKILL.md skills/architect/SKILL.md
---- upstream/pstack-5ff7a35/skills/architect/SKILL.md	2026-09-22 19:23:16.843647070 +0000
-+++ skills/architect/SKILL.md	2026-09-22 19:27:22.624647751 +0000
+diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/architect/SKILL.md skills/architect/SKILL.md
+--- upstream/pstack-bf0c7cd/skills/architect/SKILL.md	2026-11-16 01:31:59.492771889 +0000
++++ skills/architect/SKILL.md	2026-11-16 02:07:52.050727495 +0000
 @@ -1,7 +1,6 @@
  ---
  name: architect
@@ -9,18 +9,18 @@ diff -ruN -x PORT-NOTES.md upstream/pstack-5ff7a35/skills/architect/SKILL.md ski
  ---
  
  # Architect
-@@ -30,7 +29,7 @@
+@@ -28,7 +27,7 @@
  
- Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt. Each candidate produces a design package shaped per `references/rationale-template.md`.
+ Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
  
--Use your configured architect runners (defaults `claude-fable-5-1-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`).
-+Use your configured architect runners (`panels.architect` in `pstack-models.yaml`, default panel in `pstack-scion-runtime` §3) in place of arena's `panels.arena`.
+-Take the runners from the `architect runners` line in the `pstack-models.mdc` rule, in place of the `arena runners` line. If the rule or that line is missing, use `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
++Take the runners from `panels.architect` in `pstack-models.yaml` (**pstack-scion-runtime** §3), in place of `panels.arena`. If the file or key is missing, use the default panel in **pstack-scion-runtime** §3 (`[claude, codex, gemini]`). Alias and unavailable entries follow the runner rules in the **arena** skill's Phase A.
  
  Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
  
-diff -ruN -x PORT-NOTES.md upstream/pstack-5ff7a35/skills/architect/references/runner-prompt.md skills/architect/references/runner-prompt.md
---- upstream/pstack-5ff7a35/skills/architect/references/runner-prompt.md	2026-09-22 19:23:16.844647070 +0000
-+++ skills/architect/references/runner-prompt.md	2026-09-22 19:27:22.624647751 +0000
+diff -ruN -x PORT-NOTES.md -x node_modules upstream/pstack-bf0c7cd/skills/architect/references/runner-prompt.md skills/architect/references/runner-prompt.md
+--- upstream/pstack-bf0c7cd/skills/architect/references/runner-prompt.md	2026-11-16 01:31:59.492771889 +0000
++++ skills/architect/references/runner-prompt.md	2026-11-16 02:07:58.850717991 +0000
 @@ -1,6 +1,6 @@
  # Architect runner prompt
  

@@ -7,13 +7,13 @@ description: "Use for \"automate me\", \"create/update/refresh my -mode skill\",
 
 A guided flow for turning the user's working conventions into a skill agents will follow. The output is one `-mode` skill tailored to them (e.g. `jay-mode`, `priya-mode`).
 
-This skill orchestrates three others: an inline mining pass (see step 1), poteto-mode's authoring-a-skill playbook (authoring; it stands in for Cursor's `create-skill`), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
+This skill orchestrates three others: an inline mining pass (see step 1), **poteto-mode**'s authoring-a-skill playbook (standing in for Cursor's built-in `create-skill`), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
 
 ## Flow
 
 ### 0. Check for an existing skill
 
-Look recursively for `.scion/skills/**/*-mode/SKILL.md` and `.scion/templates/*/skills/*-mode/SKILL.md` in the repo, and `*-mode/SKILL.md` in your own harness's skills dir (a delivered copy), matching the user's handle. Mode skills can live in a personal category directory (`.scion/skills/<handle>/`), not only at the top level. If one exists, confirm intent with the ask_user pattern from the **pstack-scion-runtime** skill (unless they already said "update my skill" or similar):
+Look recursively for `.scion/skills/**/*-mode/SKILL.md` and `.scion/templates/*/skills/*-mode/SKILL.md` in the repo, and `*-mode/SKILL.md` in your own harness's skills dir (a delivered copy), matching the user's handle. Mode skills can live in a personal category directory (`.scion/skills/<handle>/`), not only at the top level. If one exists, confirm intent with the `ask_user` pattern from **pstack-scion-runtime** §2 (unless they already said "update my skill" or similar):
 
 - Update the existing skill (default for repeat runs)
 - Start fresh (rare, ask why before doing it)
@@ -25,14 +25,14 @@ Update mode changes the rest of the flow:
 
 ### 1. Mine their history
 
-Scion keeps no transcript store (runtime section 2). The user's working style shows up in two places, and both stay inside the active project:
+Scion keeps no shared `agent-transcripts/` directory (**pstack-scion-runtime** §2). The user's working style shows up in two places inside the active project:
 
 - **Conversations.** `scion conversation list`, then `scion conversation messages <ref>` for the threads the user took part in. Their own messages carry the requests, corrections, and pushback.
-- **pstack trails.** Each program dir in the pstack store (runtime section 4). `preferences.md` is already a standing-orders list in their words. `gates.md` answers and `decisions.tsv` rows that record a correction or a revert show what they overrode.
+- **pstack trails.** Each program dir in the pstack store (**pstack-scion-runtime** §4). `notes.md` records standing orders and open gates in the user's words, and `decisions.tsv` rows that record a correction or revert show what they overrode.
 
 Don't read another project's conversations or store. That crosses project boundaries and reads private threads.
 
-Survey recent conversations and programs within that scope for recurring patterns. Run multiple parallel in-harness subagents (runtime section 1) across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Each slice mining subagent reads the conversation refs and program dirs the parent assigns it, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
+Survey recent conversations and programs within that scope for recurring patterns. Run multiple parallel in-harness subagents (**pstack-scion-runtime** §1) across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads the conversation refs and program dirs the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
 
 - Response preferences (length, tone, format, "dumb it down" corrections)
 - Delegation habits (subagents, models, specialized workflows, parallelism)
@@ -45,7 +45,7 @@ Cross-check across slices before elevating a signal. Patterns seen in 2+ slices 
 
 ### 2. Ask the user directly
 
-Mining misses intent that hasn't come up yet. Use the runtime's ask_user pattern with numbered options rather than asking the user to type from scratch.
+Mining misses intent that hasn't come up yet. Use the runtime's `ask_user` pattern (**pstack-scion-runtime** §2) with numbered options rather than asking the user to type from scratch.
 
 Shape: one or two questions with 4-6 options each, "reply with every number that applies" for category questions. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
 
@@ -74,7 +74,7 @@ Use the authoring-a-skill playbook to author the skill. Placement:
 - Handle: the user's first name or chosen identifier.
 - Frontmatter `description`: trigger on their name + `/<handle>-mode` + "work in their style", not on generic keywords like "write code" or "review PR".
 - Frontmatter formatting: follow the agentskills.io YAML rules. Keep `description` as one YAML scalar. Quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
-- Delivery: Scion does not load skills from the repo, and has no slash command to invoke one. Suggest forking the `pstack-lead` template into a `<handle>-lead` template that ships the mode skill in its `skills/` dir and treats it as always on the way `pstack-lead` treats poteto-mode. A mode that should apply only on request stays out of the template instructions, and the lead routes to it when the user names it.
+- Delivery: Scion does not load skills from `/workspace` automatically (**pstack-scion-runtime** §2). Suggest adding the skill URI (or copying into `.scion/templates/<handle>-lead/skills/` and running `scion templates sync`) on a forked `<handle>-lead` template that treats it as always on the way `pstack-lead` treats poteto-mode; an on-request mode stays out of the template system prompt and the lead routes to it when named.
 
 ### 5. Iterate on prose
 
@@ -105,4 +105,3 @@ Run a description-optimization loop only if the skill's trigger accuracy turns o
 
 - User wants a task-specific skill (not working conventions): the authoring-a-skill playbook alone, no mining required.
 - User wants to capture one narrow workflow (e.g. "how I write commit messages"). That's a regular skill, not a mode skill.
-

@@ -7,7 +7,7 @@ You work in poteto's style end to end.
 
 1. Read the **pstack-scion-runtime** skill.
 2. Read the **poteto-mode** skill's `SKILL.md` in full, including its Principles index. Open a leaf `principle-*` skill whenever you apply that principle. Skipping this read is what makes a generic worker drift. It is the reason this template exists.
-3. Read your brief. It uses orchestrate's shape: GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, TIMEBOX, FORBIDDEN, REPORT, STANDING. If a field you need is missing or contradicts the repo, say so in your REPORT and do the safest in-scope interpretation. Don't wait for an answer.
+3. Read your brief. It uses runtime §1's shape: `GOAL`, `SCOPE`, `CONTEXT`, `ACCEPTANCE`, `VERIFY`, `TIMEBOX`, `FORBIDDEN`, `REPORT`, `STANDING` (collapsed to a short paragraph for trivial units). If a field you need is missing or contradicts the repo, say so in your REPORT and do the safest in-scope interpretation. Don't wait for an answer.
 
 ## How you work
 
@@ -16,7 +16,7 @@ You work in poteto's style end to end.
 - You may fan out yourself: in-harness subagents for reading, Scion agents for model diversity or separate branches (runtime §1). Feature step 4's review separation applies to you too.
 - Externalize as you go. Push your branch after each verified unit. Work that exists only in this container was never done.
 - Verify against the real artifact (**principle-prove-it-works**). Report exactly what you ran.
-- If you open a PR, follow the Opening a PR playbook, including interrogate and no-comments. Return the URL. Do not babysit unless the brief says so.
+- If you open a PR, follow the Opening a PR playbook, including interrogate, deslop, and no-comments. Return the URL. Do not babysit unless the brief says so.
 
 ## Reporting
 
