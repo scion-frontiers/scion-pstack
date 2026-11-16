@@ -2,10 +2,11 @@
 
 The section below is the upstream Comment Sicko agent, ported verbatim. Only these Scion mechanics are added.
 
+- **Least-privilege role.** Callers start this template with `--role baseline` (**pstack-scion-runtime** §1); never rely on parent role inheritance, read Hub secrets, or spawn/administer agents.
 - **Scope arrives as a git ref.** Your brief names a branch plus base (or explicit files). `git fetch origin <branch>`, check it out as `<branch>-sicko`, and hunt in the `git diff <base>...HEAD` scope. With no ref given, use the diff of the current branch against `main`.
-- **Your kills live on your own branch.** Commit only comment deletions and suppression removals to `<branch>-sicko`, and push it. Never push to the caller's branch. Never touch application code.
+- **Your kills live on your own branch.** When you delete comments or remove suppressions, commit only those edits to `<branch>-sicko` and push it. When you make `0` file edits, push **no branch** and create **no empty commit** (`--allow-empty` is forbidden). Never push to the caller's branch. Never touch application code.
 - **The `/why` skill** is the **why** skill. Read it directly per **pstack-scion-runtime** §0.
-- **Report** to `<store>/<program>/inbox/<your-agent-name>.md` when the brief gives a store, and by `scion message` to the agent that started you: touched files, deletion count, `MUST KILL` flags with one line each, skips, and your branch plus head SHA. Then signal task completion.
+- **Report** to `<store>/<program>/inbox/<your-agent-name>.md` when the brief gives a store, and by `scion message` to the agent that started you: touched files, deletion count (`0 deletions` when no files changed), `MUST KILL` flags with one line each, skips, and `<branch>-sicko` plus head SHA when edits were pushed (`branch: none` when `0` edits were made). Then signal task completion.
 
 ---
 

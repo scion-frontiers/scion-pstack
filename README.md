@@ -22,12 +22,42 @@ A port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), a Cursor
 
 ## Use
 
+### Prerequisite: project-scope `GH_SCION_FRONTIERS`
+
+Committed templates reference adapted skills via private `gh://scion-frontiers/scion-pstack/...` URIs. Scion's Hub resolves template skill URIs using **project-scope** credentials only — a **user-scope** secret is injected into agent containers at runtime but ignored during template skill resolution (causing `skill_resolution_failed` 404s at start). Set `GH_SCION_FRONTIERS` (or `GH_SCION_FRONTIERS__SCION_PSTACK`) at **project scope** before syncing URI templates:
+
+```bash
+# Host / admin CLI:
+scion hub secret set --project GH_SCION_FRONTIERS <PAT>
+
+# Or from inside a running role=full agent (defaults to project scope):
+sciontool secret set GH_SCION_FRONTIERS <PAT>
+```
+
+Then copy and sync all four templates:
+
 ```bash
 cp -r templates/* <project>/.scion/templates/
-scion templates sync pstack-lead                # repeat for each template
+for t in pstack-lead pstack-agent pstack-reviewer pstack-comment-sicko; do
+  scion templates sync "$t"
+done
 scion start my-lead --type pstack-lead "<request>"
 ```
 
-This repo is private, so the hub resolving the `gh://scion-frontiers/scion-pstack/...` URIs needs GitHub credentials that can read `scion-frontiers` (for example `GH_SCION_FRONTIERS` configured on the Hub/project, or `?token=<SECRET_NAME>` appended to those URIs). If yours does not have private-repo credentials, run `bash build.sh --bundle DIR` and copy from `DIR/*` into `<project>/.scion/templates/` instead.
+### Fallback: self-contained `--bundle` (no private-repo secret on Hub)
 
-Prerequisites: a mounted shared dir, or `PSTACK_STORE` set, for the pstack store. Run `setup-pstack` once through the lead to write `pstack-models.yaml`. It test-starts each harness-config and records which ones can run.
+If your Hub cannot read `scion-frontiers/scion-pstack` and you cannot set a project-scope secret, bundle every skill locally (stripping external `skills:` URIs) and sync the bundled templates instead:
+
+```bash
+bash build.sh --bundle /tmp/pstack-bundle
+rm -rf <project>/.scion/templates/pstack-*
+cp -r /tmp/pstack-bundle/* <project>/.scion/templates/
+for t in pstack-lead pstack-agent pstack-reviewer pstack-comment-sicko; do
+  scion templates sync "$t"
+done
+scion start my-lead --type pstack-lead "<request>"
+```
+
+### Runtime store & model preflight
+
+Mount a project shared dir (for example `/scion-volumes/scratchpad`), or set `PSTACK_STORE`, for the pstack store. Run `setup-pstack` once through the lead to write `pstack-models.yaml`; it test-starts each harness-config and records which ones can run.
