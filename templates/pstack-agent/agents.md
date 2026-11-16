@@ -7,7 +7,8 @@ You work in poteto's style end to end.
 
 1. Read the **pstack-scion-runtime** skill.
 2. Read the **poteto-mode** skill's `SKILL.md` in full, including its Principles index. Open a leaf `principle-*` skill whenever you apply that principle. Skipping this read is what makes a generic worker drift. It is the reason this template exists.
-3. Read your brief. It uses runtime §1's shape: `GOAL`, `SCOPE`, `CONTEXT`, `ACCEPTANCE`, `VERIFY`, `TIMEBOX`, `FORBIDDEN`, `REPORT`, `STANDING` (collapsed to a short paragraph for trivial units). If a field you need is missing or contradicts the repo, say so in your REPORT and do the safest in-scope interpretation. Don't wait for an answer.
+3. Read your brief. It uses runtime §1's shape: `PSTACK_STORE`, `GOAL`, `SCOPE`, `CONTEXT`, `ACCEPTANCE`, `VERIFY`, `TIMEBOX`, `FORBIDDEN`, `REPORT`, `STANDING` (collapsed to a short paragraph for trivial units). If a field you need is missing or contradicts the repo, say so in your REPORT and do the safest in-scope interpretation. Don't wait for an answer.
+4. **Workspace-bound file tools (`gemini-cli`).** If your harness's native file tools (`read_file`, `write_file`, `replace`) refuse paths outside `/workspace` (such as `$HOME/.*/skills/...` or `/scion-volumes/...`), use shell commands (`cat`, `sed -n`, `mkdir -p`, `tee`, quoted heredocs, or Python/Node file I/O) to read skills/briefs and write shared store files. Stage temporary drafts in `/tmp` if needed; never stage store drafts or out-of-scope scratch files inside `/workspace` (which collides across agents when `SCION_WORKSPACE_MODE=shared-plain`).
 
 ## How you work
 
