@@ -11,7 +11,7 @@
 #
 # Usage:
 #   bash build.sh            # rewrite templates/*/scion-agent.yaml (pure URIs)
-#   bash build.sh --check    # exit 1 if committed templates are stale or --bundle validation fails
+#   bash build.sh --check    # exit 1 if committed templates, schema parity, or --bundle lints fail
 #   bash build.sh --bundle DIR
 #                            # write self-contained templates to DIR with every skill copied
 #                            # in locally (for hubs without GitHub / GH_SCION_FRONTIERS access)
@@ -26,6 +26,9 @@ TEAMKIT_DIR="$ROOT/upstream/cursor-team-kit-bf0c7cd"
 TEAMKIT_URI_BASE="https://github.com/cursor/plugins/tree/$UPSTREAM_SHA/cursor-team-kit/skills"
 TEAMKIT="deslop control-ui control-cli"
 DROPPED="make-bot-ui ketchup-video"
+LEAD_ONLY="setup-pstack automate-me poteto-help"
+EXTERNAL_UNSHIPPED="verify-this"
+PLATFORM_SKILLS="git-operations team-creation software-engineering-process"
 
 MODE=write
 BUNDLE=""
@@ -49,7 +52,7 @@ all_skills() {
 skills_for() {
   case "$1" in
     pstack-lead)   all_skills; printf '%s\n' $TEAMKIT ;;
-    pstack-agent)  all_skills | grep -vxE 'setup-pstack|automate-me|poteto-help'; printf '%s\n' $TEAMKIT ;;
+    pstack-agent)  all_skills | grep -vxE "${LEAD_ONLY// /|}"; printf '%s\n' $TEAMKIT ;;
     pstack-reviewer)
       printf '%s\n' pstack-scion-runtime benchmark-checklist in-your-own-words interrogate \
         arena architect reflect show-me-your-work how why unslop technical-writing \
@@ -132,6 +135,232 @@ bundle_into() {
   done
 }
 
+# Extract "<section>.<key>" entries from the "# pstack-models.yaml" fenced YAML block (#8).
+models_schema_keys() {
+  awk '
+    /^```yaml$/ { in_yaml=1; is_models=0; sec="top"; next }
+    in_yaml && /^```$/ { if (is_models) exit; in_yaml=0; next }
+    in_yaml && /^# pstack-models\.yaml([. ]|$)/ { is_models=1; next }
+    is_models {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+      if (line ~ /^[a-z][a-z0-9-]*:[[:space:]]*$/) {
+        sub(/:.*/, "", line)
+        sec = line
+      } else if (line ~ /^[a-z][a-z0-9-]*:/) {
+        sub(/:.*/, "", line)
+        print "top." line
+      } else if (line ~ /^  [a-z][a-z0-9-]*:/) {
+        sub(/^  /, "", line)
+        sub(/:.*/, "", line)
+        print sec "." line
+      }
+    }
+  ' "$1" | LC_ALL=C sort -u
+}
+
+check_models_schema() {
+  local runtime_md="$ROOT/skills/pstack-scion-runtime/SKILL.md"
+  local setup_md="$ROOT/skills/setup-pstack/SKILL.md"
+  local runtime_keys setup_keys
+  runtime_keys=$(models_schema_keys "$runtime_md")
+  setup_keys=$(models_schema_keys "$setup_md")
+  if ! grep -q '^roles\.' <<<"$runtime_keys" || ! grep -q '^panels\.' <<<"$runtime_keys"; then
+    echo "pstack-scion-runtime/SKILL.md: missing roles or panels in pstack-models.yaml block" >&2
+    return 1
+  fi
+  if ! grep -q '^roles\.' <<<"$setup_keys" || ! grep -q '^panels\.' <<<"$setup_keys"; then
+    echo "setup-pstack/SKILL.md: missing roles or panels in pstack-models.yaml block" >&2
+    return 1
+  fi
+  if ! diff -u -L "pstack-scion-runtime/SKILL.md" -L "setup-pstack/SKILL.md" \
+      <(printf '%s\n' "$runtime_keys") <(printf '%s\n' "$setup_keys"); then
+    echo "pstack-models.yaml schema keys differ between pstack-scion-runtime and setup-pstack" >&2
+    return 1
+  fi
+}
+
+# Lint bundled templates for unshipped skill references and broken relative links (#11).
+check_bundle_refs() {
+  local bundle_root="$1" bad=0 tpl_dir tpl tpl_real shipped allowed all_known runtime_ok
+  all_known=$( { ls "$UPSTREAM_DIR/skills"; ls "$TEAMKIT_DIR/skills"; ls "$ROOT/skills"; } | LC_ALL=C sort -u | tr '\n' ' ' )
+  runtime_ok=$( { all_skills; printf '%s\n' $TEAMKIT $DROPPED $EXTERNAL_UNSHIPPED; } | LC_ALL=C sort -u | tr '\n' ' ' )
+
+  for tpl_dir in "$bundle_root"/*/; do
+    tpl_dir="${tpl_dir%/}"
+    tpl=$(basename "$tpl_dir")
+    tpl_real=$(cd "$tpl_dir" && pwd -P)
+    shipped=$(ls -1 "$tpl_dir/skills" | tr '\n' ' ')
+    allowed="$EXTERNAL_UNSHIPPED"
+    [[ "$tpl" != "pstack-lead" ]] && allowed="$allowed $LEAD_ONLY"
+    # Read-only reviewers run under caller briefs; poteto-mode's Subagents effort rule is mirrored in pstack-scion-runtime §1.
+    [[ "$tpl" == "pstack-reviewer" ]] && allowed="$allowed poteto-mode"
+
+    local md_files=() f
+    while IFS= read -r f; do md_files+=("$f"); done < <(find "$tpl_dir" -name '*.md' | LC_ALL=C sort)
+
+    if ! awk \
+      -v tpl="$tpl" \
+      -v base="$tpl_dir/" \
+      -v tpl_real="$tpl_real" \
+      -v shipped="$shipped" \
+      -v allowed="$allowed" \
+      -v runtime_ok="$runtime_ok" \
+      -v all_known="$all_known" \
+      -v platform="$PLATFORM_SKILLS" \
+      '
+      BEGIN {
+        n = split(shipped, a, " ");    for (i=1; i<=n; i++) if (a[i]!="") is_shipped[a[i]] = 1
+        n = split(allowed, a, " ");    for (i=1; i<=n; i++) if (a[i]!="") is_allowed[a[i]] = 1
+        n = split(runtime_ok, a, " "); for (i=1; i<=n; i++) if (a[i]!="") is_runtime_ok[a[i]] = 1
+        n = split(all_known, a, " ");  for (i=1; i<=n; i++) if (a[i]!="") is_known[a[i]] = 1
+        n = split(platform, a, " ");   for (i=1; i<=n; i++) if (a[i]!="") is_platform[a[i]] = 1
+        bad = 0
+      }
+      FNR == 1 {
+        in_fence = 0; fence_char = ""; fence_len = 0
+        rel = FILENAME
+        if (index(rel, base) == 1) rel = substr(rel, length(base) + 1)
+        is_runtime_doc = (rel == "skills/pstack-scion-runtime/SKILL.md")
+        is_skill_root = (rel ~ /^skills\/[^\/]+\/[^\/]+$/)
+        is_skill_sub1 = (rel ~ /^skills\/[^\/]+\/[^\/]+\/[^\/]+$/)
+        dir_of_file = FILENAME
+        sub(/\/[^\/]+$/, "", dir_of_file)
+      }
+      function is_plat(tok) {
+        return (tok ~ /^scion-/) || (tok in is_platform)
+      }
+      function check_ref(tok, strict_local, require_known,   ok, key) {
+        if (tok == "") return
+        if (!strict_local && is_plat(tok)) return
+        if (!require_known && !(tok in is_known)) return
+        if (strict_local) {
+          ok = (tok in is_shipped)
+        } else if (is_runtime_doc) {
+          ok = (tok in is_runtime_ok)
+        } else {
+          ok = (tok in is_shipped) || (tok in is_allowed)
+        }
+        if (!ok) {
+          key = rel ":" FNR ":" tok
+          if (!(key in reported)) {
+            reported[key] = 1
+            printf "%s: %s:%d references unshipped skill '\''%s'\''\n", tpl, rel, FNR, tok > "/dev/stderr"
+            bad = 1
+          }
+        }
+      }
+      {
+        line = $0
+        if (!in_fence && match(line, /^ ? ? ?(```+|~~~+)/)) {
+          s = substr(line, RSTART, RLENGTH); sub(/^ +/, "", s)
+          in_fence = 1; fence_char = substr(s, 1, 1); fence_len = length(s)
+        } else if (in_fence && match(line, /^ ? ? ?(```+|~~~+) *$/)) {
+          s = substr(line, RSTART, RLENGTH); sub(/^ +/, "", s); sub(/ +$/, "", s)
+          if (substr(s, 1, 1) == fence_char && length(s) >= fence_len) in_fence = 0
+        }
+
+        # 1. Backtick skill tokens: `foo`, `/foo`, `foo/SKILL.md`
+        s = line
+        while (match(s, /`\/?[a-z][a-z0-9-]+(\/SKILL\.md)?`/)) {
+          tok = substr(s, RSTART + 1, RLENGTH - 2)
+          has_skill_md = (tok ~ /\/SKILL\.md$/)
+          sub(/^\//, "", tok); sub(/\/SKILL\.md$/, "", tok)
+          check_ref(tok, 0, has_skill_md)
+          s = substr(s, RSTART + RLENGTH)
+        }
+
+        # 2. Bold skill tokens: **foo**, **/foo**
+        s = line
+        while (match(s, /\*\*\/?[a-z][a-z0-9-]+\*\*/)) {
+          tok = substr(s, RSTART + 2, RLENGTH - 4)
+          sub(/^\//, "", tok)
+          check_ref(tok, 0, 0)
+          s = substr(s, RSTART + RLENGTH)
+        }
+
+        # 3. Slash skill tokens: /foo (outside URLs/paths)
+        s = line
+        while (match(s, /(^|[^A-Za-z0-9_.:\/-])\/[a-z][a-z0-9-]+([^A-Za-z0-9_\/-]|$)/)) {
+          seg = substr(s, RSTART, RLENGTH)
+          off = RSTART
+          match(seg, /\/[a-z][a-z0-9-]+/)
+          tok = substr(seg, RSTART + 1, RLENGTH - 1)
+          adv = off + RSTART + RLENGTH - 1
+          check_ref(tok, 0, 0)
+          s = substr(s, adv)
+        }
+
+        # 4. Cross-skill relative paths inside skills/ (must resolve to a shipped skill)
+        if (is_skill_root) {
+          s = line
+          while (match(s, /\.\.\/[a-z][a-z0-9-]+\//)) {
+            tok = substr(s, RSTART + 3, RLENGTH - 4)
+            check_ref(tok, 1, 1)
+            s = substr(s, RSTART + RLENGTH)
+          }
+        } else if (is_skill_sub1) {
+          s = line
+          while (match(s, /\.\.\/\.\.\/[a-z][a-z0-9-]+\//)) {
+            tok = substr(s, RSTART + 6, RLENGTH - 7)
+            check_ref(tok, 1, 1)
+            s = substr(s, RSTART + RLENGTH)
+          }
+        }
+        s = line
+        while (match(s, /skills\/[a-z][a-z0-9-]+(\/|[^A-Za-z0-9_-]|$)/)) {
+          seg = substr(s, RSTART + 7, RLENGTH - 7)
+          sub(/[^a-z0-9-].*$/, "", seg)
+          check_ref(seg, 0, 0)
+          s = substr(s, RSTART + 7)
+        }
+
+        # 5. Explicit prose: "the **foo** principle skill" / "the **foo** skill"
+        s = line
+        while (match(s, /the (\*\*[a-z][a-z0-9-]+\*\*|`\/?[a-z][a-z0-9-]+`) principle skill/)) {
+          seg = substr(s, RSTART + 4, RLENGTH - 20)
+          gsub(/[*`\/]/, "", seg)
+          check_ref("principle-" seg, 1, 1)
+          s = substr(s, RSTART + RLENGTH)
+        }
+        s = line
+        while (match(s, /the (\*\*[a-z][a-z0-9-]+\*\*|`\/?[a-z][a-z0-9-]+`) skill/)) {
+          seg = substr(s, RSTART + 4, RLENGTH - 10)
+          gsub(/[*`\/]/, "", seg)
+          check_ref(seg, 0, 1)
+          s = substr(s, RSTART + RLENGTH)
+        }
+
+        # 6. Relative Markdown links outside code fences must exist within the bundle template
+        if (!in_fence) {
+          s = line
+          while (match(s, /\[[^\]]+\]\([^)#?[:space:]]+/)) {
+            seg = substr(s, RSTART, RLENGTH)
+            sub(/^\[[^\]]+\]\(/, "", seg)
+            if (seg !~ /^(https?:|mailto:|gh:|scion:|\/)/ && seg !~ /[<>]/) {
+              if (seg ~ /["$`\\]/) {
+                printf "%s: %s:%d invalid characters in relative link '\''%s'\''\n", tpl, rel, FNR, seg > "/dev/stderr"
+                bad = 1
+              } else {
+                cmd = "target=\"" dir_of_file "/" seg "\"; test -e \"$target\" && dir=$(cd \"$(dirname \"$target\")\" 2>/dev/null && pwd -P) && case \"$dir\" in \"" tpl_real "\"|\"" tpl_real "\"/*) exit 0 ;; *) exit 1 ;; esac"
+                if (system(cmd) != 0) {
+                  printf "%s: %s:%d broken relative link '\''%s'\''\n", tpl, rel, FNR, seg > "/dev/stderr"
+                  bad = 1
+                }
+              }
+            }
+            s = substr(s, RSTART + RLENGTH)
+          }
+        }
+      }
+      END { exit bad }
+      ' "${md_files[@]}"; then
+      bad=1
+    fi
+  done
+  return "$bad"
+}
+
 case "$MODE" in
   write)
     for dir in "$ROOT"/templates/*/; do
@@ -183,6 +412,12 @@ case "$MODE" in
     leaked=$(find "$tmp_bundle" \( -name PORT-NOTES.md -o -name node_modules -o -path '*/scripts/test' \) -print -quit)
     if [[ -n "$leaked" ]]; then
       echo "--bundle leaked excluded file or directory: $leaked" >&2
+      stale=1
+    fi
+    if ! check_models_schema; then
+      stale=1
+    fi
+    if ! check_bundle_refs "$tmp_bundle"; then
       stale=1
     fi
     [[ $stale -eq 0 ]] && echo "templates and bundle check are up to date" || { echo "stale or invalid: run bash build.sh" >&2; exit 1; } ;;
