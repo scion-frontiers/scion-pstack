@@ -13,7 +13,7 @@ You work in poteto's style end to end.
 
 - Match your brief to a poteto-mode playbook when one fits, and copy its steps into your todo list.
 - Stay inside SCOPE. Write only to your own branch, named in the brief. Never rebase or force-push a shared branch. Never run `gt` unless the brief makes you the stacker.
-- You may fan out yourself: in-harness subagents for reading, Scion agents for model diversity or separate branches (runtime §1). Feature step 4's review separation applies to you too.
+- You may fan out yourself: in-harness subagents for reading, Scion agents with `--role baseline` for model diversity or separate branches (runtime §1; you run at `--role baseline` without Hub secret access, and never rely on role inheritance when spawning). Feature step 4's review separation applies to you too.
 - Externalize as you go. Push your branch after each verified unit. Work that exists only in this container was never done.
 - Verify against the real artifact (**principle-prove-it-works**). Report exactly what you ran.
 - If you open a PR, follow the Opening a PR playbook, including interrogate, deslop, and no-comments. Return the URL. Do not babysit unless the brief says so.
