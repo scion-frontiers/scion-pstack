@@ -4,59 +4,57 @@
 # The generated files are committed. Re-run this script after changing a skill set,
 # adding an adapted skill under skills/, or bumping UPSTREAM_SHA, and commit the result.
 #
-# Skill sources:
-#   - adapted (skills/<name>/ exists in this repo)  -> gh://scion-frontiers/scion-pstack/<name>
+# Skill sources (all delivered as pure URIs in committed templates):
+#   - adapted (skills/<name>/ exists in this repo)      -> gh://scion-frontiers/scion-pstack/<name>
 #   - cursor-team-kit (deslop, control-ui, control-cli) -> SHA-pinned tree URI into cursor/plugins
-#   - everything else from upstream pstack             -> SHA-pinned tree URI into cursor/plugins
-#
-# Exception: Scion's GitHub skill resolvers fetch only a skill's top-level files and drop its
-# subdirectories. A skill with nested files (poteto-mode's playbooks/ and scripts/, for example)
-# is therefore copied into templates/<role>/skills/<name>/ instead, and those copies are committed.
-# Never edit them in place: edit skills/ (or bump the upstream snapshot) and re-run this script.
+#   - everything else from upstream pstack              -> SHA-pinned tree URI into cursor/plugins
 #
 # Usage:
-#   bash build.sh            # rewrite templates/*/scion-agent.yaml
-#   bash build.sh --check    # exit 1 if the committed files are stale
+#   bash build.sh            # rewrite templates/*/scion-agent.yaml (pure URIs)
+#   bash build.sh --check    # exit 1 if committed templates are stale or --bundle validation fails
 #   bash build.sh --bundle DIR
 #                            # write self-contained templates to DIR with every skill copied
-#                            # in locally (for hubs that cannot reach GitHub or this private repo)
+#                            # in locally (for hubs without GitHub / GH_SCION_FRONTIERS access)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 REPO_URI="gh://scion-frontiers/scion-pstack"
-UPSTREAM_SHA="5ff7a359dec6be2128b15c0fe53c1c12a46e41c8"
-UPSTREAM_DIR="$ROOT/upstream/pstack-5ff7a35"
+UPSTREAM_SHA="bf0c7cd80abdbf7fe47b634978a7d1b4071f71a7"
+UPSTREAM_DIR="$ROOT/upstream/pstack-bf0c7cd"
 URI_BASE="https://github.com/cursor/plugins/tree/$UPSTREAM_SHA/pstack/skills"
-TEAMKIT_DIR="$ROOT/upstream/cursor-team-kit-5ff7a35"
+TEAMKIT_DIR="$ROOT/upstream/cursor-team-kit-bf0c7cd"
 TEAMKIT_URI_BASE="https://github.com/cursor/plugins/tree/$UPSTREAM_SHA/cursor-team-kit/skills"
 TEAMKIT="deslop control-ui control-cli"
-DROPPED="make-bot-ui"
+DROPPED="make-bot-ui ketchup-video"
 
 MODE=write
 BUNDLE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) MODE=check ;;
-    --bundle) MODE=bundle; BUNDLE="$2"; shift ;;
+    --bundle)
+      [[ $# -ge 2 && -n "${2:-}" ]] || { echo "--bundle requires a destination directory" >&2; exit 2; }
+      MODE=bundle; BUNDLE="$2"; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
 done
 
-PRINCIPLES=$(cd "$UPSTREAM_DIR/skills" && ls -d principle-* | sort)
+PRINCIPLES=$(cd "$UPSTREAM_DIR/skills" && LC_ALL=C ls -d principle-* | LC_ALL=C sort)
 
 all_skills() {
-  { ls "$UPSTREAM_DIR/skills"; ls "$ROOT/skills"; } | sort -u | grep -vxF "$DROPPED"
+  { ls "$UPSTREAM_DIR/skills"; ls "$ROOT/skills"; } | LC_ALL=C sort -u | grep -vxE "${DROPPED// /|}"
 }
 
 skills_for() {
   case "$1" in
     pstack-lead)   all_skills; printf '%s\n' $TEAMKIT ;;
-    pstack-agent)  all_skills | grep -vxE 'setup-pstack|automate-me'; printf '%s\n' $TEAMKIT ;;
+    pstack-agent)  all_skills | grep -vxE 'setup-pstack|automate-me|poteto-help'; printf '%s\n' $TEAMKIT ;;
     pstack-reviewer)
-      printf '%s\n' pstack-scion-runtime unslop technical-writing typescript-best-practices \
-        blast-radius how why control-ui control-cli $PRINCIPLES ;;
-    pstack-comment-sicko) printf '%s\n' pstack-scion-runtime how why ;;
+      printf '%s\n' pstack-scion-runtime benchmark-checklist in-your-own-words interrogate \
+        arena architect reflect show-me-your-work how why unslop technical-writing \
+        typescript-best-practices blast-radius statechart control-ui control-cli $PRINCIPLES ;;
+    pstack-comment-sicko) printf '%s\n' pstack-scion-runtime why ;;
     *) echo "no skill set for $1" >&2; exit 1 ;;
   esac
 }
@@ -78,21 +76,16 @@ src_of() {
   fi
 }
 
-nested() {
-  [[ -n "$(find "$1" -mindepth 2 -type f -not -path '*/node_modules/*' -print -quit)" ]]
-}
-
-# Print "<kind> <name>" per URI-delivered skill, grouped: adapted, team-kit, upstream.
+# Print "<kind> <name>" per skill, grouped (adapted, teamkit, upstream) and sorted within each group.
 classify() {
-  local s src
+  local s
   for s in $(skills_for "$1"); do
-    src=$(src_of "$s") || exit 1
-    nested "$src" && continue
-    if   [[ -d "$ROOT/skills/$s" ]];         then echo "adapted $s"
-    elif [[ -d "$TEAMKIT_DIR/skills/$s" ]];  then echo "teamkit $s"
-    else echo "upstream $s"
+    src_of "$s" >/dev/null || exit 1
+    if   [[ -d "$ROOT/skills/$s" ]];         then echo "0 adapted $s"
+    elif [[ -d "$TEAMKIT_DIR/skills/$s" ]];  then echo "1 teamkit $s"
+    else echo "2 upstream $s"
     fi
-  done | sort -s -k1,1 -t' ' | awk '{o=($1=="adapted")?0:($1=="teamkit")?1:2; print o, $0}' | sort -s -n -k1,1 | cut -d' ' -f2-
+  done | LC_ALL=C sort -u -k1,1n -k3,3 | cut -d' ' -f2-
 }
 
 render_yaml() {
@@ -105,12 +98,6 @@ render_yaml() {
   [[ "$tpl" == pstack-lead ]] && echo "model: extra-large"
   echo "#"
   echo "# Generated by build.sh; edit the skill sets there, then re-run it."
-  local locals; locals=$(local_skills "$tpl" | tr '\n' ' ')
-  if [[ -n "$locals" ]]; then
-    echo "#"
-    echo "# Also shipped as local files in skills/, because Scion's GitHub skill resolver drops"
-    echo "# subdirectories: ${locals% }"
-  fi
   echo "skills:"
   while read -r kind name; do
     if [[ "$kind" != "$last" ]]; then
@@ -129,49 +116,74 @@ render_yaml() {
   done < <(classify "$tpl")
 }
 
-# Skills with subdirectories, delivered as template-local copies.
-local_skills() {
-  local s
-  for s in $(skills_for "$1"); do nested "$(src_of "$s")" && echo "$s"; done
-  return 0
-}
-
-copy_local() {  # copy_local <tpl> <dest-skills-dir>
-  local s
-  mkdir -p "$2"
-  for s in $(local_skills "$1"); do
-    rsync -a --delete --exclude PORT-NOTES.md --exclude node_modules "$(src_of "$s")/" "$2/$s/"
+bundle_into() {
+  local out="$1" quiet="${2:-0}" dir tpl dest kind name
+  for dir in "$ROOT"/templates/*/; do
+    tpl=$(basename "$dir")
+    dest="$out/$tpl"
+    rm -rf "$dest"; mkdir -p "$dest/skills"
+    cp "$dir/agents.md" "$dest/agents.md"
+    render_yaml "$tpl" | sed '/^skills:/,$d' > "$dest/scion-agent.yaml"
+    while read -r kind name; do
+      rsync -a --delete --exclude PORT-NOTES.md --exclude node_modules --exclude 'scripts/test' \
+        "$(src_of "$name")/" "$dest/skills/$name/"
+    done < <(classify "$tpl")
+    [[ "$quiet" == "1" ]] || echo "$tpl: bundled $(ls -1 "$dest/skills" | wc -l | tr -d ' ') skills into $dest"
   done
 }
 
-stale=0
-for dir in "$ROOT"/templates/*/; do
-  tpl=$(basename "$dir")
-  case "$MODE" in
-    write)
+case "$MODE" in
+  write)
+    for dir in "$ROOT"/templates/*/; do
+      tpl=$(basename "$dir")
       render_yaml "$tpl" > "$dir/scion-agent.yaml"
-      rm -rf "$dir/skills"
-      [[ -n "$(local_skills "$tpl")" ]] && copy_local "$tpl" "$dir/skills"
-      echo "$tpl: $(grep -c '^  - uri:' "$dir/scion-agent.yaml") URI skills, $(local_skills "$tpl" | wc -l) local" ;;
-    check)
+      rm -rf "${dir}skills"
+      echo "$tpl: $(grep -c '^  - uri:' "$dir/scion-agent.yaml") URI skills"
+    done ;;
+  bundle)
+    bundle_into "$BUNDLE" 0 ;;
+  check)
+    stale=0
+    for dir in "$ROOT"/templates/*/; do
+      tpl=$(basename "$dir")
       if ! diff -u "$dir/scion-agent.yaml" <(render_yaml "$tpl"); then stale=1; fi
-      tmp=$(mktemp -d); copy_local "$tpl" "$tmp/skills"
-      if ! diff -r "$tmp/skills" "${dir}skills" 2>/dev/null >/dev/null && [[ -n "$(ls "$tmp/skills")" || -d "${dir}skills" ]]; then
-        echo "$tpl: skills/ copies are stale" >&2; stale=1
+      if [[ -d "${dir}skills" ]]; then
+        echo "$tpl: unexpected committed skills/ directory (committed templates must be pure URIs)" >&2
+        stale=1
       fi
-      rm -rf "$tmp" ;;
-    bundle)
-      dest="$BUNDLE/$tpl"
-      rm -rf "$dest"; mkdir -p "$dest/skills"
-      cp "$dir/agents.md" "$dest/agents.md"
-      render_yaml "$tpl" | sed '/^skills:/,$d' > "$dest/scion-agent.yaml"
-      copy_local "$tpl" "$dest/skills"
-      while read -r kind name; do
-        rsync -a --exclude PORT-NOTES.md --exclude node_modules "$(src_of "$name")/" "$dest/skills/$name/"
-      done < <(classify "$tpl")
-      echo "$tpl: bundled $(ls "$dest/skills" | wc -l) skills into $dest" ;;
-  esac
-done
-if [[ "$MODE" == check ]]; then
-  [[ $stale -eq 0 ]] && echo "templates are up to date" || { echo "stale: run bash build.sh" >&2; exit 1; }
-fi
+      extra_entries=$(LC_ALL=C ls -A "$dir" | grep -vxE 'agents\.md|scion-agent\.yaml' || true)
+      if [[ -n "$extra_entries" ]]; then
+        echo "$tpl: unexpected entries in template dir: $extra_entries" >&2
+        stale=1
+      fi
+    done
+
+    tmp_bundle=$(mktemp -d)
+    trap 'rm -rf "$tmp_bundle"' EXIT
+    bundle_into "$tmp_bundle" 1
+    for dir in "$ROOT"/templates/*/; do
+      tpl=$(basename "$dir")
+      if grep -qE '^(skills:|  - uri:)' "$tmp_bundle/$tpl/scion-agent.yaml"; then
+        echo "$tpl: --bundle scion-agent.yaml still contains external skill URIs" >&2
+        stale=1
+      fi
+      expected_count=$(skills_for "$tpl" | LC_ALL=C sort -u | wc -l | tr -d ' ')
+      actual_count=$(ls -1 "$tmp_bundle/$tpl/skills" | wc -l | tr -d ' ')
+      if [[ "$expected_count" != "$actual_count" ]]; then
+        echo "$tpl: --bundle skill count mismatch (expected $expected_count, got $actual_count)" >&2
+        stale=1
+      fi
+      for s in $(skills_for "$tpl" | LC_ALL=C sort -u); do
+        if [[ ! -s "$tmp_bundle/$tpl/skills/$s/SKILL.md" ]]; then
+          echo "$tpl: --bundle missing or empty SKILL.md for $s" >&2
+          stale=1
+        fi
+      done
+    done
+    leaked=$(find "$tmp_bundle" \( -name PORT-NOTES.md -o -name node_modules -o -path '*/scripts/test' \) -print -quit)
+    if [[ -n "$leaked" ]]; then
+      echo "--bundle leaked excluded file or directory: $leaked" >&2
+      stale=1
+    fi
+    [[ $stale -eq 0 ]] && echo "templates and bundle check are up to date" || { echo "stale or invalid: run bash build.sh" >&2; exit 1; } ;;
+esac
